@@ -12,6 +12,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.nolansoftware.airadio.data.repository.RadioRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -26,13 +27,21 @@ class SyncWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         return try {
-            Log.i(TAG, "SyncWorker.doWork: starting")
-            radioRepository.syncAllData()
+            val fullSync = inputData.getBoolean(KEY_FULL_SYNC, false)
+            Log.i(TAG, "SyncWorker.doWork: starting (fullSync=$fullSync)")
+            if (fullSync) {
+                radioRepository.syncDailyData()
+            } else {
+                radioRepository.syncInitialData()
+            }
             Log.i(TAG, "SyncWorker.doWork: success")
             Result.success()
         } catch (e: Exception) {
-            Log.e(TAG, "SyncWorker.doWork: failed", e)
-            Result.retry()
+            Log.e(TAG, "SyncWorker.doWork: failed (attempt $runAttemptCount)", e)
+            // First two failed attempts get retried (WorkManager honors backoff);
+            // the third is surfaced as a hard failure so the UI banner offers
+            // a manual retry instead of looping forever.
+            if (runAttemptCount < MAX_AUTO_RETRIES) Result.retry() else Result.failure()
         }
     }
 
@@ -40,6 +49,16 @@ class SyncWorker @AssistedInject constructor(
         private const val TAG = "SyncWorker"
         private const val WORK_NAME = "SyncWorker"
         private const val INITIAL_WORK_NAME = "SyncWorker_Initial"
+
+        /** Per-request flag telling the worker which path to take. */
+        private const val KEY_FULL_SYNC = "fullSync"
+
+        /**
+         * Number of automatic retries before surfacing a permanent failure to
+         * the UI. Bounded to keep an unreachable server / bad DNS from
+         * running retries forever in the background.
+         */
+        private const val MAX_AUTO_RETRIES = 2
 
         fun schedule(context: Context) {
             val constraints = Constraints.Builder()
@@ -56,6 +75,7 @@ class SyncWorker @AssistedInject constructor(
                 repeatIntervalTimeUnit = TimeUnit.HOURS
             )
                 .setConstraints(constraints)
+                .setInputData(workDataOf(KEY_FULL_SYNC to true))
                 .build()
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
@@ -68,8 +88,10 @@ class SyncWorker @AssistedInject constructor(
             // wait at least 15 minutes before their first execution, so without this the
             // Room cache stays empty and every screen reads "Loading..." until then.
             // REPLACE cancels any pending initial from a previous launch and re-enqueues.
+            // fullSync = false so the cold-start payload is small (~300 stations).
             val initialRequest = OneTimeWorkRequestBuilder<SyncWorker>()
                 .setConstraints(constraints)
+                .setInputData(workDataOf(KEY_FULL_SYNC to false))
                 .build()
 
             WorkManager.getInstance(context).enqueueUniqueWork(

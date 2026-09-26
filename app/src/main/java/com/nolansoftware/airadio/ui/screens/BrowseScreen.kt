@@ -1,7 +1,5 @@
 package com.nolansoftware.airadio.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,7 +11,6 @@ import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -22,7 +19,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -30,7 +26,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.nolansoftware.airadio.R
+import com.nolansoftware.airadio.domain.model.SyncState
 import com.nolansoftware.airadio.ui.components.BrowseItemCard
+import com.nolansoftware.airadio.ui.components.SkeletonBrowseRow
+import com.nolansoftware.airadio.ui.components.SyncStatusBanner
 import com.nolansoftware.airadio.ui.navigation.Screen
 import com.nolansoftware.airadio.ui.viewmodels.BrowseViewModel
 
@@ -44,6 +43,7 @@ fun BrowseScreen(
     val countries by browseViewModel.countries.collectAsState(initial = emptyList())
     val languages by browseViewModel.languages.collectAsState(initial = emptyList())
     val tags by browseViewModel.tags.collectAsState(initial = emptyList())
+    val syncState by browseViewModel.syncState.collectAsState()
 
     val tabs = listOf(
         TabItem(
@@ -70,11 +70,16 @@ fun BrowseScreen(
             )
         }
     ) { innerPadding ->
-        Column(
+        androidx.compose.foundation.layout.Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
+            SyncStatusBanner(
+                syncState = syncState,
+                onRetry = { browseViewModel.retrySync() }
+            )
+
             TabRow(
                 selectedTabIndex = tabs.indexOfFirst { it.type == selectedTab },
                 modifier = Modifier.fillMaxWidth()
@@ -90,65 +95,52 @@ fun BrowseScreen(
             }
 
             when (selectedTab) {
-                BrowseViewModel.BrowseTab.Countries -> {
-                    BrowseList(
-                        items = countries.map { it.name to it.stationCount },
-                        onItemClick = { country ->
-                            navController.navigate(
-                                Screen.StationList.createRoute("country", country)
-                            )
-                        }
-                    )
-                }
-                BrowseViewModel.BrowseTab.Languages -> {
-                    BrowseList(
-                        items = languages.map { it.name to it.stationCount },
-                        onItemClick = { language ->
-                            navController.navigate(
-                                Screen.StationList.createRoute("language", language)
-                            )
-                        }
-                    )
-                }
-                BrowseViewModel.BrowseTab.Tags -> {
-                    BrowseList(
-                        items = tags.map { it.name to it.stationCount },
-                        onItemClick = { tag ->
-                            navController.navigate(
-                                Screen.StationList.createRoute("tag", tag)
-                            )
-                        }
-                    )
-                }
+                BrowseViewModel.BrowseTab.Countries -> BrowseContent(
+                    items = countries.map { it.name to it.stationCount },
+                    isLoading = countries.isEmpty() && syncState is SyncState.Syncing,
+                    onItemClick = { country ->
+                        navController.navigate(
+                            Screen.StationList.createRoute("country", country)
+                        )
+                    }
+                )
+                BrowseViewModel.BrowseTab.Languages -> BrowseContent(
+                    items = languages.map { it.name to it.stationCount },
+                    isLoading = languages.isEmpty() && syncState is SyncState.Syncing,
+                    onItemClick = { language ->
+                        navController.navigate(
+                            Screen.StationList.createRoute("language", language)
+                        )
+                    }
+                )
+                BrowseViewModel.BrowseTab.Tags -> BrowseContent(
+                    items = tags.map { it.name to it.stationCount },
+                    isLoading = tags.isEmpty() && syncState is SyncState.Syncing,
+                    onItemClick = { tag ->
+                        navController.navigate(
+                            Screen.StationList.createRoute("tag", tag)
+                        )
+                    }
+                )
             }
         }
     }
 }
 
+private const val SKELETON_BROWSE_COUNT = 10
+
 @Composable
-private fun BrowseList(
+private fun BrowseContent(
     items: List<Pair<String, Int>>,
-    onItemClick: (String) -> Unit,
-    modifier: Modifier = Modifier
+    isLoading: Boolean,
+    onItemClick: (String) -> Unit
 ) {
-    if (items.isEmpty()) {
-        Column(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = stringResource(R.string.loading),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+    if (isLoading) {
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            items(SKELETON_BROWSE_COUNT) { SkeletonBrowseRow() }
         }
     } else {
-        LazyColumn(
-            modifier = modifier.fillMaxSize()
-        ) {
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
             items(items) { (name, count) ->
                 BrowseItemCard(
                     name = name,

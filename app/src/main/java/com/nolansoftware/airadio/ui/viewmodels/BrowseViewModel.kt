@@ -4,10 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nolansoftware.airadio.domain.model.Country
 import com.nolansoftware.airadio.domain.model.Language
+import com.nolansoftware.airadio.domain.model.SyncState
 import com.nolansoftware.airadio.domain.model.Tag
 import com.nolansoftware.airadio.domain.usecase.GetAllCountriesUseCase
 import com.nolansoftware.airadio.domain.usecase.GetAllLanguagesUseCase
 import com.nolansoftware.airadio.domain.usecase.GetPopularTagsUseCase
+import com.nolansoftware.airadio.domain.usecase.GetSyncStateUseCase
+import com.nolansoftware.airadio.domain.usecase.SyncNowUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,7 +22,9 @@ import javax.inject.Inject
 class BrowseViewModel @Inject constructor(
     private val getAllCountriesUseCase: GetAllCountriesUseCase,
     private val getAllLanguagesUseCase: GetAllLanguagesUseCase,
-    private val getPopularTagsUseCase: GetPopularTagsUseCase
+    private val getPopularTagsUseCase: GetPopularTagsUseCase,
+    getSyncStateUseCase: GetSyncStateUseCase,
+    private val syncNowUseCase: SyncNowUseCase
 ) : ViewModel() {
 
     sealed class BrowseTab {
@@ -35,7 +40,13 @@ class BrowseViewModel @Inject constructor(
     val languages: Flow<List<Language>> = getAllLanguagesUseCase()
     val tags: Flow<List<Tag>> = getPopularTagsUseCase()
 
+    val syncState: StateFlow<SyncState> = getSyncStateUseCase()
+
     fun selectTab(tab: BrowseTab) {
         _selectedTab.value = tab
+    }
+
+    fun retrySync() {
+        viewModelScope.launch { syncNowUseCase() }
     }
 }

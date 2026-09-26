@@ -4,8 +4,10 @@ import com.nolansoftware.airadio.data.repository.RadioRepository
 import com.nolansoftware.airadio.domain.model.Country
 import com.nolansoftware.airadio.domain.model.Language
 import com.nolansoftware.airadio.domain.model.Station
+import com.nolansoftware.airadio.domain.model.SyncState
 import com.nolansoftware.airadio.domain.model.Tag
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
@@ -105,7 +107,21 @@ class SyncDataUseCase @Inject constructor(
     private val repository: RadioRepository
 ) {
     suspend operator fun invoke() {
-        repository.syncAllData()
+        repository.syncInitialData()
+    }
+}
+
+class GetSyncStateUseCase @Inject constructor(
+    private val repository: RadioRepository
+) {
+    operator fun invoke(): StateFlow<SyncState> = repository.syncState
+}
+
+class SyncNowUseCase @Inject constructor(
+    private val repository: RadioRepository
+) {
+    suspend operator fun invoke() {
+        repository.syncNow()
     }
 }
 

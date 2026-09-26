@@ -21,4 +21,11 @@
     <string name="loading">Loading...</string>
     <string name="error">Error</string>
     <string name="no_internet">No internet connection</string>
+    <string name="sync_status_stages_countries">Loading countries…</string>
+    <string name="sync_status_stages_languages">Loading languages…</string>
+    <string name="sync_status_stages_tags">Loading tags…</string>
+    <string name="sync_status_stations_progress">Loading stations… (%1$d / %2$d)</string>
+    <string name="sync_status_retrying">Sync failed — retrying…</string>
+    <string name="sync_status_failed_retry">Sync failed</string>
+    <string name="sync_status_tap_to_retry">Tap to retry</string>
 </resources>

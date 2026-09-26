@@ -9,7 +9,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -28,7 +27,10 @@ import androidx.navigation.NavController
 import com.nolansoftware.airadio.R
 import com.nolansoftware.airadio.domain.model.PlayerState
 import com.nolansoftware.airadio.domain.model.Station
+import com.nolansoftware.airadio.domain.model.SyncState
+import com.nolansoftware.airadio.ui.components.SkeletonStationCard
 import com.nolansoftware.airadio.ui.components.StationCard
+import com.nolansoftware.airadio.ui.components.SyncStatusBanner
 import com.nolansoftware.airadio.ui.navigation.Screen
 import com.nolansoftware.airadio.ui.viewmodels.HomeViewModel
 import com.nolansoftware.airadio.ui.viewmodels.PlayerViewModel
@@ -40,11 +42,13 @@ fun HomeScreen(
     homeViewModel: HomeViewModel = hiltViewModel(),
     playerViewModel: PlayerViewModel = hiltViewModel()
 ) {
-    val isLoading by homeViewModel.isLoading.collectAsState()
     val popularStations by homeViewModel.popularStations.collectAsState(initial = emptyList())
     val recentlyPlayed by homeViewModel.recentlyPlayedStations.collectAsState(initial = emptyList())
     val localStations by homeViewModel.localStations.collectAsState(initial = emptyList())
     val playerState by playerViewModel.playerState.observeAsState(PlayerState.Idle)
+    val syncState by homeViewModel.syncState.collectAsState()
+
+    val showSkeleton = popularStations.isEmpty() && syncState is SyncState.Syncing
 
     Scaffold(
         topBar = {
@@ -53,88 +57,62 @@ fun HomeScreen(
             )
         }
     ) { innerPadding ->
-        if (isLoading) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                CircularProgressIndicator()
-                Text(
-                    text = stringResource(R.string.loading),
-                    modifier = Modifier.padding(top = 16.dp)
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
-                if (recentlyPlayed.isNotEmpty()) {
-                    item {
-                        Text(
-                            text = stringResource(R.string.recently_played),
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.padding(16.dp)
-                        )
-                    }
-                    item {
-                        LazyRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            content = {
-                                items(recentlyPlayed) { station ->
-                                    StationItem(
-                                        station = station,
-                                        navController = navController,
-                                        homeViewModel = homeViewModel,
-                                        playerViewModel = playerViewModel,
-                                        playerState = playerState
-                                    )
-                                }
-                            }
-                        )
-                    }
-                }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            SyncStatusBanner(
+                syncState = syncState,
+                onRetry = { homeViewModel.retrySync() }
+            )
 
-                item {
-                    Text(
-                        text = stringResource(R.string.popular_stations),
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(16.dp)
-                    )
+            if (showSkeleton) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(SKELETON_COUNT) { SkeletonStationCard() }
                 }
-
-                items(popularStations) { station ->
-                    StationCard(
-                        station = station,
-                        isFavorite = homeViewModel.isFavorite(station.stationuuid)
-                            .collectAsState(initial = false).value,
-                        onStationClick = {
-                            handleStationClick(
-                                station = station,
-                                navController = navController,
-                                playerViewModel = playerViewModel,
-                                playerState = playerState
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    if (recentlyPlayed.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = stringResource(R.string.recently_played),
+                                style = MaterialTheme.typography.titleLarge,
+                                modifier = Modifier.padding(16.dp)
                             )
-                        },
-                        onToggleFavorite = { homeViewModel.toggleFavorite(it) }
-                    )
-                }
+                        }
+                        item {
+                            LazyRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                content = {
+                                    items(recentlyPlayed) { station ->
+                                        StationItem(
+                                            station = station,
+                                            navController = navController,
+                                            homeViewModel = homeViewModel,
+                                            playerViewModel = playerViewModel,
+                                            playerState = playerState
+                                        )
+                                    }
+                                }
+                            )
+                        }
+                    }
 
-                if (localStations.isNotEmpty()) {
                     item {
                         Text(
-                            text = stringResource(R.string.local_stations),
+                            text = stringResource(R.string.popular_stations),
                             style = MaterialTheme.typography.titleLarge,
                             modifier = Modifier.padding(16.dp)
                         )
                     }
 
-                    items(localStations.take(10)) { station ->
+                    items(popularStations) { station ->
                         StationCard(
                             station = station,
                             isFavorite = homeViewModel.isFavorite(station.stationuuid)
@@ -150,11 +128,40 @@ fun HomeScreen(
                             onToggleFavorite = { homeViewModel.toggleFavorite(it) }
                         )
                     }
+
+                    if (localStations.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = stringResource(R.string.local_stations),
+                                style = MaterialTheme.typography.titleLarge,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+
+                        items(localStations.take(10)) { station ->
+                            StationCard(
+                                station = station,
+                                isFavorite = homeViewModel.isFavorite(station.stationuuid)
+                                    .collectAsState(initial = false).value,
+                                onStationClick = {
+                                    handleStationClick(
+                                        station = station,
+                                        navController = navController,
+                                        playerViewModel = playerViewModel,
+                                        playerState = playerState
+                                    )
+                                },
+                                onToggleFavorite = { homeViewModel.toggleFavorite(it) }
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 }
+
+private const val SKELETON_COUNT = 8
 
 @Composable
 private fun LazyItemScope.StationItem(

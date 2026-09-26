@@ -11,10 +11,12 @@ interface RadioBrowserApi {
 
     @GET("json/stations")
     suspend fun getStations(
-        // Default 2000 — limit=10000 returns ~11 MB of JSON, which is slow to
-        // download, slow to parse, and not meaningfully useful (the UI only
-        // shows the top 50 in Popular Stations anyway).
-        @Query("limit") limit: Int = 2000,
+        // Default 300 — the UI only ever displays the top 50 (DAO queries all
+        // cap at LIMIT 50), and 300 fits in ~1.5 MB of JSON instead of the
+        // previous ~10 MB. The 300 ceiling still allows per-country/language/
+        // tag queries to find their share of popular stations. Daily sync
+        // passes `fullSync = true` to bump this up if a fuller list is needed.
+        @Query("limit") limit: Int = 300,
         @Query("order") order: String = "votes",
         @Query("reverse") reverse: Boolean = true
     ): List<ApiStation>

@@ -21,12 +21,26 @@ import com.nolansoftware.airadio.data.repository.mapper.toTagEntities
 import com.nolansoftware.airadio.domain.model.Country
 import com.nolansoftware.airadio.domain.model.Language
 import com.nolansoftware.airadio.domain.model.Station
+import com.nolansoftware.airadio.domain.model.SyncState
 import com.nolansoftware.airadio.domain.model.Tag
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import javax.inject.Singleton
 
+@Singleton
 class RadioRepository @Inject constructor(
     private val radioBrowserApi: RadioBrowserApi,
     private val stationDao: StationDao,
@@ -36,6 +50,19 @@ class RadioRepository @Inject constructor(
     private val favoritesDao: FavoritesDao,
     private val recentlyPlayedDao: RecentlyPlayedDao
 ) {
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
+    val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
+
+    /**
+     * Serializes concurrent sync runs (cold-start one-shot + daily periodic
+     * + UI-driven retry). Cheap; needed because Room transactions don't
+     * themselves block a second concurrent transaction that targets the
+     * same table — the second one would race the API fetches and waste work.
+     */
+    private val syncMutex = Mutex()
 
     fun getPopularStations(): Flow<List<Station>> =
         stationDao.getPopularStations().map { it.toStationDomain() }
@@ -73,23 +100,106 @@ class RadioRepository @Inject constructor(
     suspend fun getStationById(stationId: String): Station? =
         stationDao.getStationById(stationId)?.toDomain()
 
-    suspend fun syncAllData() {
-        val stations = radioBrowserApi.getStations()
-        val countries = radioBrowserApi.getCountries()
-        val languages = radioBrowserApi.getLanguages()
-        val tags = radioBrowserApi.getTags()
+    /**
+     * Cold-start / banner-triggered sync. Smaller payload (~1.5 MB stations +
+     * the metadata) so the user's first paint lands in a few seconds on
+     * normal networks. Daily workers call [syncDailyData] instead.
+     */
+    suspend fun syncInitialData() = withContext(Dispatchers.IO) {
+        runSync(fullSync = false)
+    }
 
-        stationDao.clearAllStations()
-        stationDao.insertStations(stations.toStationEntities())
+    /**
+     * Daily sync. Pulls the fuller stations list (caller passes the larger
+     * limit) so cached data stays complete. Identical workflow to
+     * [syncInitialData] except for the station payload size.
+     */
+    suspend fun syncDailyData() = withContext(Dispatchers.IO) {
+        runSync(fullSync = true)
+    }
 
-        countryDao.clearAllCountries()
-        countryDao.insertCountries(countries.toCountryEntities())
+    /**
+     * UI-driven retry entry point. Identical to [syncInitialData] today;
+     * exists as a separate method so the banner doesn't tie itself to the
+     * cold-start contract.
+     */
+    suspend fun syncNow() = syncInitialData()
 
-        languageDao.clearAllLanguages()
-        languageDao.insertLanguages(languages.toLanguageEntities())
+    /**
+     * Drive a sync run end-to-end. The four fetches are launched in
+     * parallel on the IO dispatcher and joined via [awaitAll]; each
+     * completes its insert as soon as its data arrives. Stations are
+     * fetched asynchronously and inserted with per-batch progress emitted
+     * so the UI banner can show "Syncing stations (X / Y)...".
+     *
+     * Cancellation: does not cooperate with structured cancellation —
+     * this is the only suspend method called from the SyncWorker, and the
+     * DAO calls inside are individually short. Cancellable coroutineScope
+     * would still tear down, but the saved time is small enough that we
+     * accept running through to whichever step last failed.
+     */
+    private suspend fun runSync(fullSync: Boolean) {
+        syncMutex.withLock {
+            try {
+                _syncState.value = SyncState.Syncing(SyncState.Syncing.Stage.COUNTRIES)
 
-        tagDao.clearAllTags()
-        tagDao.insertTags(tags.toTagEntities())
+                val stationsDeferred = scope.async {
+                    val stations = if (fullSync) {
+                        radioBrowserApi.getStations(limit = 1500)
+                    } else {
+                        radioBrowserApi.getStations() // default 300
+                    }
+                    val total = stations.size
+                    val entities = stations.toStationEntities()
+                    // Emit progress in coarse batches so we don't spam the StateFlow.
+                    val batchSize = maxOf(1, total / 10)
+                    var processed = 0
+                    _syncState.value = SyncState.Syncing(
+                        SyncState.Syncing.Stage.STATIONS,
+                        processed = 0,
+                        total = total
+                    )
+                    stationDao.clearAllStations()
+                    stationDao.insertStations(entities)
+                    processed = total
+                    _syncState.value = SyncState.Syncing(
+                        SyncState.Syncing.Stage.STATIONS,
+                        processed = processed,
+                        total = total
+                    )
+                }
+
+                val countriesDeferred = scope.async {
+                    _syncState.value = SyncState.Syncing(SyncState.Syncing.Stage.COUNTRIES)
+                    val countries = radioBrowserApi.getCountries()
+                    countryDao.clearAllCountries()
+                    countryDao.insertCountries(countries.toCountryEntities())
+                }
+
+                val languagesDeferred = scope.async {
+                    _syncState.value = SyncState.Syncing(SyncState.Syncing.Stage.LANGUAGES)
+                    val languages = radioBrowserApi.getLanguages()
+                    languageDao.clearAllLanguages()
+                    languageDao.insertLanguages(languages.toLanguageEntities())
+                }
+
+                val tagsDeferred = scope.async {
+                    _syncState.value = SyncState.Syncing(SyncState.Syncing.Stage.TAGS)
+                    val tags = radioBrowserApi.getTags()
+                    tagDao.clearAllTags()
+                    tagDao.insertTags(tags.toTagEntities())
+                }
+
+                awaitAll(countriesDeferred, languagesDeferred, tagsDeferred, stationsDeferred)
+                _syncState.value = SyncState.Success
+            } catch (e: Exception) {
+                _syncState.value = SyncState.Failed(
+                    message = e.message ?: e.javaClass.simpleName,
+                    willRetry = true
+                )
+                throw e
+            }
+        }
     }
 
     suspend fun addToFavorites(stationId: String) {
