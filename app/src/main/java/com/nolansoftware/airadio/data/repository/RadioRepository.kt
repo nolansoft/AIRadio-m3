@@ -23,11 +23,10 @@ import com.nolansoftware.airadio.domain.model.Language
 import com.nolansoftware.airadio.domain.model.Station
 import com.nolansoftware.airadio.domain.model.SyncState
 import com.nolansoftware.airadio.domain.model.Tag
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,8 +49,6 @@ class RadioRepository @Inject constructor(
     private val favoritesDao: FavoritesDao,
     private val recentlyPlayedDao: RecentlyPlayedDao
 ) {
-
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
     val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
@@ -127,70 +124,67 @@ class RadioRepository @Inject constructor(
 
     /**
      * Drive a sync run end-to-end. The four fetches are launched in
-     * parallel on the IO dispatcher and joined via [awaitAll]; each
-     * completes its insert as soon as its data arrives. Stations are
-     * fetched asynchronously and inserted with per-batch progress emitted
-     * so the UI banner can show "Syncing stations (X / Y)...".
-     *
-     * Cancellation: does not cooperate with structured cancellation —
-     * this is the only suspend method called from the SyncWorker, and the
-     * DAO calls inside are individually short. Cancellable coroutineScope
-     * would still tear down, but the saved time is small enough that we
-     * accept running through to whichever step last failed.
+     * parallel inside [coroutineScope] so cancellation from the caller
+     * (e.g. `ExistingWorkPolicy.REPLACE` cancelling the SyncWorker) tears
+     * every child down. Each fetch completes its insert as soon as its
+     * data arrives. Stations emit start and completion states (the UI
+     * banner reads total from the start state).
      */
     private suspend fun runSync(fullSync: Boolean) {
         syncMutex.withLock {
             try {
                 _syncState.value = SyncState.Syncing(SyncState.Syncing.Stage.COUNTRIES)
 
-                val stationsDeferred = scope.async {
-                    val stations = if (fullSync) {
-                        radioBrowserApi.getStations(limit = 1500)
-                    } else {
-                        radioBrowserApi.getStations() // default 300
+                coroutineScope {
+                    val stationsDeferred = async {
+                        val stations = if (fullSync) {
+                            radioBrowserApi.getStations(limit = 1500)
+                        } else {
+                            radioBrowserApi.getStations() // default 300
+                        }
+                        val total = stations.size
+                        val entities = stations.toStationEntities()
+                        // Emit progress in coarse batches so we don't spam the StateFlow.
+                        val batchSize = maxOf(1, total / 10)
+                        var processed = 0
+                        _syncState.value = SyncState.Syncing(
+                            SyncState.Syncing.Stage.STATIONS,
+                            processed = 0,
+                            total = total
+                        )
+                        stationDao.clearAllStations()
+                        stationDao.insertStations(entities)
+                        processed = total
+                        _syncState.value = SyncState.Syncing(
+                            SyncState.Syncing.Stage.STATIONS,
+                            processed = processed,
+                            total = total
+                        )
                     }
-                    val total = stations.size
-                    val entities = stations.toStationEntities()
-                    // Emit progress in coarse batches so we don't spam the StateFlow.
-                    val batchSize = maxOf(1, total / 10)
-                    var processed = 0
-                    _syncState.value = SyncState.Syncing(
-                        SyncState.Syncing.Stage.STATIONS,
-                        processed = 0,
-                        total = total
-                    )
-                    stationDao.clearAllStations()
-                    stationDao.insertStations(entities)
-                    processed = total
-                    _syncState.value = SyncState.Syncing(
-                        SyncState.Syncing.Stage.STATIONS,
-                        processed = processed,
-                        total = total
-                    )
-                }
 
-                val countriesDeferred = scope.async {
-                    _syncState.value = SyncState.Syncing(SyncState.Syncing.Stage.COUNTRIES)
-                    val countries = radioBrowserApi.getCountries()
-                    countryDao.clearAllCountries()
-                    countryDao.insertCountries(countries.toCountryEntities())
-                }
+                    val countriesDeferred = async {
+                        _syncState.value = SyncState.Syncing(SyncState.Syncing.Stage.COUNTRIES)
+                        val countries = radioBrowserApi.getCountries()
+                        countryDao.clearAllCountries()
+                        countryDao.insertCountries(countries.toCountryEntities())
+                    }
 
-                val languagesDeferred = scope.async {
-                    _syncState.value = SyncState.Syncing(SyncState.Syncing.Stage.LANGUAGES)
-                    val languages = radioBrowserApi.getLanguages()
-                    languageDao.clearAllLanguages()
-                    languageDao.insertLanguages(languages.toLanguageEntities())
-                }
+                    val languagesDeferred = async {
+                        _syncState.value = SyncState.Syncing(SyncState.Syncing.Stage.LANGUAGES)
+                        val languages = radioBrowserApi.getLanguages()
+                        languageDao.clearAllLanguages()
+                        languageDao.insertLanguages(languages.toLanguageEntities())
+                    }
 
-                val tagsDeferred = scope.async {
-                    _syncState.value = SyncState.Syncing(SyncState.Syncing.Stage.TAGS)
-                    val tags = radioBrowserApi.getTags()
-                    tagDao.clearAllTags()
-                    tagDao.insertTags(tags.toTagEntities())
-                }
+                    val tagsDeferred = async {
+                        _syncState.value = SyncState.Syncing(SyncState.Syncing.Stage.TAGS)
+                        val tags = radioBrowserApi.getTags()
+                        tagDao.clearAllTags()
+                        tagDao.insertTags(tags.toTagEntities())
+                    }
 
-                awaitAll(countriesDeferred, languagesDeferred, tagsDeferred, stationsDeferred)
+                    awaitAll(countriesDeferred, languagesDeferred, tagsDeferred, stationsDeferred)
+                }
                 _syncState.value = SyncState.Success
             } catch (e: Exception) {
                 _syncState.value = SyncState.Failed(
