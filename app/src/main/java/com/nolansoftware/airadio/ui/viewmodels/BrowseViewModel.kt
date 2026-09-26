@@ -1,0 +1,41 @@
+package com.nolansoftware.airadio.ui.viewmodels
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.nolansoftware.airadio.domain.model.Country
+import com.nolansoftware.airadio.domain.model.Language
+import com.nolansoftware.airadio.domain.model.Tag
+import com.nolansoftware.airadio.domain.usecase.GetAllCountriesUseCase
+import com.nolansoftware.airadio.domain.usecase.GetAllLanguagesUseCase
+import com.nolansoftware.airadio.domain.usecase.GetPopularTagsUseCase
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class BrowseViewModel @Inject constructor(
+    private val getAllCountriesUseCase: GetAllCountriesUseCase,
+    private val getAllLanguagesUseCase: GetAllLanguagesUseCase,
+    private val getPopularTagsUseCase: GetPopularTagsUseCase
+) : ViewModel() {
+
+    sealed class BrowseTab {
+        object Countries : BrowseTab()
+        object Languages : BrowseTab()
+        object Tags : BrowseTab()
+    }
+
+    private val _selectedTab = MutableStateFlow<BrowseTab>(BrowseTab.Countries)
+    val selectedTab: StateFlow<BrowseTab> = _selectedTab
+
+    val countries: Flow<List<Country>> = getAllCountriesUseCase()
+    val languages: Flow<List<Language>> = getAllLanguagesUseCase()
+    val tags: Flow<List<Tag>> = getPopularTagsUseCase()
+
+    fun selectTab(tab: BrowseTab) {
+        _selectedTab.value = tab
+    }
+}

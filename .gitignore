@@ -1,0 +1,37 @@
+# ─── Gradle ──────────────────────────────────────────────────────────────
+.gradle/
+/build/
+/app/build/
+/captures/
+
+# ─── Android Studio / IntelliJ ───────────────────────────────────────────
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# ─── Local SDK / JDK config (per-machine) ────────────────────────────────
+local.properties
+
+# ─── Crash logs and verification screenshots (transient) ────────────────
+crash_log.txt
+crash_log2.txt
+crash_buffer.txt
+verify_*.png
+verify_*.txt
+
+# ─── Runtime / orchestration state ──────────────────────────────────────
+.omc/
+.sisyphus/
+
+# ─── OS junk ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Build outputs (defensive; usually absent from VCS by default) ──────
+*.apk
+*.aab
+*.ap_
+*.aar
+*.dex
+*.class
