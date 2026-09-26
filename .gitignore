@@ -35,3 +35,12 @@ Thumbs.db
 *.aar
 *.dex
 *.class
+
+# ─── Editor / OS duplicate and backup files ─────────────────────────────
+# CJK-localized "copy" suffix (e.g. "gradle-wrapper - 副本.properties")
+*副本*
+# Space-dash-space pattern, common to Chinese/Western editor copy commands
+* - *.*
+# Generic backup suffixes
+*.bak
+*~
