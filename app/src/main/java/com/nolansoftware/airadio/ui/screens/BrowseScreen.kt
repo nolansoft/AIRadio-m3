@@ -84,7 +84,7 @@ fun BrowseScreen(
                 selectedTabIndex = tabs.indexOfFirst { it.type == selectedTab },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                tabs.forEachIndexed { index, tab ->
+                tabs.forEachIndexed { _, tab ->
                     Tab(
                         selected = selectedTab == tab.type,
                         onClick = { browseViewModel.selectTab(tab.type) },

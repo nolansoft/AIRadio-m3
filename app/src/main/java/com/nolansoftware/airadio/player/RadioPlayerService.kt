@@ -61,7 +61,7 @@ class RadioPlayerService : Service(), LifecycleOwner {
             super.onPlaybackStateChanged(playbackState)
             when (playbackState) {
                 Player.STATE_BUFFERING -> {
-                    currentStation?.let { station ->
+                    currentStation?.let { _ ->
                         _playerState.value = PlayerState.Loading
                     }
                 }
