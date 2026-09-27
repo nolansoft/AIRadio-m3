@@ -184,4 +184,21 @@ interface PagedStationCacheDao {
      */
     @Query("DELETE FROM paged_station_cache WHERE cachedAt < :cutoffMillis")
     suspend fun deleteOlderThan(cutoffMillis: Long)
+
+    /**
+     * Lookup a single cached row by its stationuuid. Used as a fallback
+     * when the global `stations` table doesn't have the row — Browse >
+     * Countries / Languages / Tags stations live only in this cache after
+     * the paging change. Returns the most recently cached match (the
+     * composite PK would otherwise allow multiple rows for the same
+     * station cached under different browse dimensions, e.g. China and
+     * english).
+     */
+    @Query("""
+        SELECT * FROM paged_station_cache
+        WHERE stationuuid = :stationId
+        ORDER BY cachedAt DESC
+        LIMIT 1
+    """)
+    suspend fun findByStationId(stationId: String): com.nolansoftware.airadio.data.database.entity.PagedStationCacheEntity?
 }

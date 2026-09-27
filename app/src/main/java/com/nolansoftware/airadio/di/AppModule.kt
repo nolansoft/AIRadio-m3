@@ -109,7 +109,8 @@ object AppModule {
         languageDao: LanguageDao,
         tagDao: TagDao,
         favoritesDao: FavoritesDao,
-        recentlyPlayedDao: RecentlyPlayedDao
+        recentlyPlayedDao: RecentlyPlayedDao,
+        pagedStationCacheDao: PagedStationCacheDao,
     ): RadioRepository {
         return RadioRepository(
             api,
@@ -118,7 +119,8 @@ object AppModule {
             languageDao,
             tagDao,
             favoritesDao,
-            recentlyPlayedDao
+            recentlyPlayedDao,
+            pagedStationCacheDao,
         )
     }
 }

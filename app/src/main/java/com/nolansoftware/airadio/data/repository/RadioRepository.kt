@@ -4,6 +4,7 @@ import com.nolansoftware.airadio.data.api.RadioBrowserApi
 import com.nolansoftware.airadio.data.database.dao.CountryDao
 import com.nolansoftware.airadio.data.database.dao.FavoritesDao
 import com.nolansoftware.airadio.data.database.dao.LanguageDao
+import com.nolansoftware.airadio.data.database.dao.PagedStationCacheDao
 import com.nolansoftware.airadio.data.database.dao.RecentlyPlayedDao
 import com.nolansoftware.airadio.data.database.dao.StationDao
 import com.nolansoftware.airadio.data.database.dao.TagDao
@@ -48,7 +49,8 @@ class RadioRepository @Inject constructor(
     private val languageDao: LanguageDao,
     private val tagDao: TagDao,
     private val favoritesDao: FavoritesDao,
-    private val recentlyPlayedDao: RecentlyPlayedDao
+    private val recentlyPlayedDao: RecentlyPlayedDao,
+    private val pagedStationCacheDao: PagedStationCacheDao,
 ) {
 
     private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
@@ -119,8 +121,20 @@ class RadioRepository @Inject constructor(
     fun isFavorite(stationId: String): Flow<Boolean> =
         favoritesDao.isFavorite(stationId)
 
+    /**
+     * Look up a station by id. The `stations` table holds stations from
+     * SyncWorker (top-voted worldwide) and Search results; the
+     * `paged_station_cache` table holds stations the user has scrolled
+     * into view on Browse > Countries / Languages / Tags. PlayerScreen
+     * calls this when the user navigates from any of those entry points;
+     * without the paged-cache fallback, a station browsed from a
+     * paginated list would resolve to null and the Player UI would
+     * blank out (audio keeps playing because the service is independent
+     * of ViewModel state).
+     */
     suspend fun getStationById(stationId: String): Station? =
         stationDao.getStationById(stationId)?.toDomain()
+            ?: pagedStationCacheDao.findByStationId(stationId)?.toStationDomain()
 
     /**
      * Cold-start / banner-triggered sync. Smaller payload (~1.5 MB stations +
