@@ -131,3 +131,27 @@ class GetStationByIdUseCase @Inject constructor(
     suspend operator fun invoke(stationId: String): Station? =
         repository.getStationById(stationId)
 }
+
+class FetchStationsByCountryUseCase @Inject constructor(
+    private val repository: RadioRepository
+) {
+    suspend operator fun invoke(country: String) {
+        repository.fetchStationsByCountry(country)
+    }
+}
+
+class FetchStationsByLanguageUseCase @Inject constructor(
+    private val repository: RadioRepository
+) {
+    suspend operator fun invoke(language: String) {
+        repository.fetchStationsByLanguage(language)
+    }
+}
+
+class FetchStationsByTagUseCase @Inject constructor(
+    private val repository: RadioRepository
+) {
+    suspend operator fun invoke(tag: String) {
+        repository.fetchStationsByTag(tag)
+    }
+}

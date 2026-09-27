@@ -25,6 +25,7 @@ interface RadioBrowserApi {
     suspend fun searchStations(
         @Query("name") name: String? = null,
         @Query("country") country: String? = null,
+        @Query("language") language: String? = null,
         @Query("tag") tag: String? = null,
         @Query("limit") limit: Int = 1000
     ): List<ApiStation>

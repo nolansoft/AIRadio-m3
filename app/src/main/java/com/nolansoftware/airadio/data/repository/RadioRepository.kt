@@ -73,6 +73,21 @@ class RadioRepository @Inject constructor(
     fun getStationsByTag(tag: String): Flow<List<Station>> =
         stationDao.getStationsByTag(tag).map { it.toStationDomain() }
 
+    suspend fun fetchStationsByCountry(country: String) = withContext(Dispatchers.IO) {
+        val stations = radioBrowserApi.searchStations(country = country, limit = 1000)
+        if (stations.isNotEmpty()) stationDao.insertStations(stations.toStationEntities())
+    }
+
+    suspend fun fetchStationsByLanguage(language: String) = withContext(Dispatchers.IO) {
+        val stations = radioBrowserApi.searchStations(language = language, limit = 1000)
+        if (stations.isNotEmpty()) stationDao.insertStations(stations.toStationEntities())
+    }
+
+    suspend fun fetchStationsByTag(tag: String) = withContext(Dispatchers.IO) {
+        val stations = radioBrowserApi.searchStations(tag = tag, limit = 1000)
+        if (stations.isNotEmpty()) stationDao.insertStations(stations.toStationEntities())
+    }
+
     fun getRecentlyPlayedStations(): Flow<List<Station>> =
         stationDao.getRecentlyPlayedStations().map { it.toStationDomain() }
 

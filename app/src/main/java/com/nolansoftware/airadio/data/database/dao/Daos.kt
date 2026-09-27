@@ -18,13 +18,13 @@ interface StationDao {
     @Query("SELECT * FROM stations ORDER BY votes DESC LIMIT 50")
     fun getPopularStations(): Flow<List<StationEntity>>
 
-    @Query("SELECT * FROM stations WHERE country = :country ORDER BY votes DESC LIMIT 50")
+    @Query("SELECT * FROM stations WHERE country = :country ORDER BY votes DESC LIMIT 100")
     fun getStationsByCountry(country: String): Flow<List<StationEntity>>
 
-    @Query("SELECT * FROM stations WHERE language = :language ORDER BY votes DESC LIMIT 50")
+    @Query("SELECT * FROM stations WHERE language = :language ORDER BY votes DESC LIMIT 100")
     fun getStationsByLanguage(language: String): Flow<List<StationEntity>>
 
-    @Query("SELECT * FROM stations WHERE tags LIKE '%' || :tag || '%' ORDER BY votes DESC LIMIT 50")
+    @Query("SELECT * FROM stations WHERE tags LIKE '%' || :tag || '%' ORDER BY votes DESC LIMIT 100")
     fun getStationsByTag(tag: String): Flow<List<StationEntity>>
 
     @Query("""

@@ -28,10 +28,13 @@ import androidx.navigation.NavController
 import com.nolansoftware.airadio.R
 import com.nolansoftware.airadio.domain.model.PlayerState
 import com.nolansoftware.airadio.domain.model.Station
+import com.nolansoftware.airadio.ui.components.SkeletonStationCard
 import com.nolansoftware.airadio.ui.components.StationCard
 import com.nolansoftware.airadio.ui.navigation.Screen
 import com.nolansoftware.airadio.ui.viewmodels.PlayerViewModel
 import com.nolansoftware.airadio.ui.viewmodels.StationListViewModel
+
+private const val SKELETON_STATION_COUNT = 6
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,8 +45,9 @@ fun StationListScreen(
     stationListViewModel: StationListViewModel = hiltViewModel(),
     playerViewModel: PlayerViewModel = hiltViewModel()
 ) {
-    val stations by stationListViewModel.getStations(type, query)
-        .collectAsState(initial = emptyList())
+    val stations by stationListViewModel.stations.collectAsState(initial = emptyList())
+    val isLoading by stationListViewModel.isLoading.collectAsState()
+    val showSkeleton = stations.isEmpty() && isLoading
     val playerState by playerViewModel.playerState.observeAsState(PlayerState.Idle)
 
     val title = when (type) {
@@ -70,7 +74,11 @@ fun StationListScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            if (stations.isEmpty()) {
+            if (showSkeleton) {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(SKELETON_STATION_COUNT) { SkeletonStationCard() }
+                }
+            } else if (stations.isEmpty()) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -85,9 +93,7 @@ fun StationListScreen(
                     )
                 }
             } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize()
-                ) {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(stations) { station ->
                         StationCard(
                             station = station,
