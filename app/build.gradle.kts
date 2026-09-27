@@ -118,6 +118,13 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
+    // Paging 3 — backs the infinite-scroll station list. paging-compose
+    // provides collectAsLazyPagingItems() so the LazyColumn can read a
+    // PagingData<Station> directly. Version 3.2.1 is compatible with the
+    // Compose BOM 2024.12.01 used above; bumping either should re-check.
+    implementation("androidx.paging:paging-runtime-ktx:3.2.1")
+    implementation("androidx.paging:paging-compose:3.2.1")
+
     // Testing
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

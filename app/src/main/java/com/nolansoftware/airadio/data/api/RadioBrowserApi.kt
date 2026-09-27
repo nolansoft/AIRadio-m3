@@ -27,7 +27,14 @@ interface RadioBrowserApi {
         @Query("country") country: String? = null,
         @Query("language") language: String? = null,
         @Query("tag") tag: String? = null,
-        @Query("limit") limit: Int = 1000
+        // Paging: offset is the 0-based row index of the first returned
+        // station; the API returns up to `limit` rows after it. Order by
+        // votes descending matches Home's popular-stations surface so the
+        // paged list and Home agree on ranking.
+        @Query("offset") offset: Int = 0,
+        @Query("limit") limit: Int = 100,
+        @Query("order") order: String = "votes",
+        @Query("reverse") reverse: Boolean = true
     ): List<ApiStation>
 
     @GET("json/countries")

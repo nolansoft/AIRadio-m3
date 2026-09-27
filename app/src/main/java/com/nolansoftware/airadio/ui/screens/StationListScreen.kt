@@ -1,13 +1,17 @@
 package com.nolansoftware.airadio.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -24,6 +28,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.paging.LoadState
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemKey
 import androidx.navigation.NavController
 import com.nolansoftware.airadio.R
 import com.nolansoftware.airadio.domain.model.PlayerState
@@ -45,9 +52,7 @@ fun StationListScreen(
     stationListViewModel: StationListViewModel = hiltViewModel(),
     playerViewModel: PlayerViewModel = hiltViewModel()
 ) {
-    val stations by stationListViewModel.stations.collectAsState(initial = emptyList())
-    val isLoading by stationListViewModel.isLoading.collectAsState()
-    val showSkeleton = stations.isEmpty() && isLoading
+    val pagingItems = stationListViewModel.stations.collectAsLazyPagingItems()
     val playerState by playerViewModel.playerState.observeAsState(PlayerState.Idle)
 
     val title = when (type) {
@@ -74,44 +79,131 @@ fun StationListScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            if (showSkeleton) {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(SKELETON_STATION_COUNT) { SkeletonStationCard() }
+            val refresh = pagingItems.loadState.refresh
+            val append = pagingItems.loadState.append
+
+            when {
+                // First-page load in flight and we have nothing to show yet —
+                // render skeletons so the screen doesn't flash empty.
+                refresh is LoadState.Loading && pagingItems.itemCount == 0 -> {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        items(SKELETON_STATION_COUNT) { SkeletonStationCard() }
+                    }
                 }
-            } else if (stations.isEmpty()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = "No stations found",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                // First-page load failed (and nothing was previously cached
+                // in memory) — show a centered error with a Retry button.
+                refresh is LoadState.Error && pagingItems.itemCount == 0 -> {
+                    ErrorPanel(
+                        message = refresh.error.message
+                            ?: "Couldn't load stations. Check your connection.",
+                        onRetry = { pagingItems.retry() }
                     )
                 }
-            } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(stations) { station ->
-                        StationCard(
-                            station = station,
-                            isFavorite = stationListViewModel.isFavorite(station.stationuuid)
-                                .collectAsState(initial = false).value,
-                            onStationClick = {
-                                handleStationClick(
-                                    station = station,
-                                    navController = navController,
-                                    playerViewModel = playerViewModel,
-                                    playerState = playerState
-                                )
-                            },
-                            onToggleFavorite = { stationListViewModel.toggleFavorite(it) }
-                        )
+                // Either loaded successfully or the user navigated away from
+                // a refresh error after items had already landed.
+                else -> {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        items(
+                            count = pagingItems.itemCount,
+                            key = pagingItems.itemKey { it.stationuuid }
+                        ) { index ->
+                            val station = pagingItems[index] ?: return@items
+                            StationCard(
+                                station = station,
+                                isFavorite = stationListViewModel.isFavorite(station.stationuuid)
+                                    .collectAsState(initial = false).value,
+                                onStationClick = {
+                                    handleStationClick(
+                                        station = station,
+                                        navController = navController,
+                                        playerViewModel = playerViewModel,
+                                        playerState = playerState
+                                    )
+                                },
+                                onToggleFavorite = { stationListViewModel.toggleFavorite(it) }
+                            )
+                        }
+
+                        // Append footer: spinner while a follow-up page is
+                        // in flight, or a tiny inline error message if the
+                        // next page failed (Retry triggers pagingItems.retry()
+                        // which re-fetches the failed page).
+                        when (append) {
+                            is LoadState.Loading -> item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(modifier = Modifier.padding(8.dp))
+                                }
+                            }
+                            is LoadState.Error -> item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Button(onClick = { pagingItems.retry() }) {
+                                        Text("Retry loading more")
+                                    }
+                                }
+                            }
+                            else -> Unit
+                        }
+
+                        // Empty result after a successful load (e.g. a tag
+                        // that exists in the catalogue but no station matches
+                        // in /json/stations/search?tag=...).
+                        if (pagingItems.itemCount == 0 &&
+                            refresh is LoadState.NotLoading
+                        ) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "No stations found",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ErrorPanel(
+    message: String,
+    onRetry: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.error
+        )
+        Button(
+            onClick = onRetry,
+            modifier = Modifier.padding(top = 12.dp)
+        ) {
+            Text("Retry")
         }
     }
 }

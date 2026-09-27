@@ -15,6 +15,7 @@ import com.nolansoftware.airadio.data.repository.mapper.toDomain
 import com.nolansoftware.airadio.data.repository.mapper.toLanguageDomain
 import com.nolansoftware.airadio.data.repository.mapper.toLanguageEntities
 import com.nolansoftware.airadio.data.repository.mapper.toStationDomain
+import com.nolansoftware.airadio.data.repository.mapper.toDomainStations
 import com.nolansoftware.airadio.data.repository.mapper.toStationEntities
 import com.nolansoftware.airadio.data.repository.mapper.toTagDomain
 import com.nolansoftware.airadio.data.repository.mapper.toTagEntities
@@ -73,19 +74,28 @@ class RadioRepository @Inject constructor(
     fun getStationsByTag(tag: String): Flow<List<Station>> =
         stationDao.getStationsByTag(tag).map { it.toStationDomain() }
 
-    suspend fun fetchStationsByCountry(country: String) = withContext(Dispatchers.IO) {
-        val stations = radioBrowserApi.searchStations(country = country, limit = 1000)
-        if (stations.isNotEmpty()) stationDao.insertStations(stations.toStationEntities())
-    }
-
-    suspend fun fetchStationsByLanguage(language: String) = withContext(Dispatchers.IO) {
-        val stations = radioBrowserApi.searchStations(language = language, limit = 1000)
-        if (stations.isNotEmpty()) stationDao.insertStations(stations.toStationEntities())
-    }
-
-    suspend fun fetchStationsByTag(tag: String) = withContext(Dispatchers.IO) {
-        val stations = radioBrowserApi.searchStations(tag = tag, limit = 1000)
-        if (stations.isNotEmpty()) stationDao.insertStations(stations.toStationEntities())
+    /**
+     * Fetch a single page of stations filtered by one of country/language/tag.
+     * Used by the Paging 3 source for the StationListScreen infinite scroll.
+     *
+     * Exactly one of [country]/[language]/[tag] should be non-null; passing
+     * multiple filters sends them all to the API which will AND them together.
+     * Callers (GetStationsPagingUseCase) enforce the exactly-one invariant.
+     */
+    suspend fun fetchStationsPage(
+        country: String? = null,
+        language: String? = null,
+        tag: String? = null,
+        offset: Int,
+        limit: Int
+    ): List<Station> = withContext(Dispatchers.IO) {
+        radioBrowserApi.searchStations(
+            country = country,
+            language = language,
+            tag = tag,
+            offset = offset,
+            limit = limit
+        ).toDomainStations()
     }
 
     fun getRecentlyPlayedStations(): Flow<List<Station>> =

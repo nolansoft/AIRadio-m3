@@ -49,6 +49,31 @@ fun ApiStation.toEntity(): StationEntity = StationEntity(
     lastchecktime = parseLastCheckTime(lastchecktime)
 )
 
+/**
+ * API DTO → domain model in one step. Used by the paging path
+ * ([com.nolansoftware.airadio.data.repository.RadioRepository.fetchStationsPage])
+ * which never persists to Room, so going via StationEntity would be wasteful.
+ * Field mapping mirrors `StationEntity.toDomain()`; the only difference is the
+ * `lastchecktime` String→Long parse that `toEntity()` performs.
+ */
+fun ApiStation.toDomain(): Station = Station(
+    stationuuid = stationuuid,
+    name = name,
+    url = url,
+    urlResolved = url_resolved,
+    favicon = favicon,
+    country = country,
+    countryCode = countrycode,
+    language = language,
+    tags = tags,
+    codec = codec,
+    bitrate = bitrate,
+    votes = votes,
+    lastCheckTime = parseLastCheckTime(lastchecktime)
+)
+
+fun List<ApiStation>.toDomainStations(): List<Station> = map { it.toDomain() }
+
 fun ApiCountry.toEntity(): CountryEntity = CountryEntity(
     name = name,
     stationcount = stationcount
