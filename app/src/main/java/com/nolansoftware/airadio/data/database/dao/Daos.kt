@@ -1,5 +1,6 @@
 package com.nolansoftware.airadio.data.database.dao
 
+import androidx.paging.PagingSource
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -7,6 +8,7 @@ import androidx.room.Query
 import com.nolansoftware.airadio.data.database.entity.CountryEntity
 import com.nolansoftware.airadio.data.database.entity.FavoriteEntity
 import com.nolansoftware.airadio.data.database.entity.LanguageEntity
+import com.nolansoftware.airadio.data.database.entity.PagedStationCacheEntity
 import com.nolansoftware.airadio.data.database.entity.RecentlyPlayedEntity
 import com.nolansoftware.airadio.data.database.entity.StationEntity
 import com.nolansoftware.airadio.data.database.entity.TagEntity
@@ -123,4 +125,63 @@ interface RecentlyPlayedDao {
 
     @Query("DELETE FROM recently_played")
     suspend fun clearAllRecentlyPlayed()
+}
+
+@Dao
+interface PagedStationCacheDao {
+
+    /**
+     * Backing PagingSource for the Browse country / language / tag list.
+     * Room's InvalidationTracker fires automatically when any row matching
+     * (queryType, queryValue) is inserted or deleted, so writes from
+     * StationRemoteMediator appear in the UI without manual notification.
+     */
+    @Query("""
+        SELECT * FROM paged_station_cache
+        WHERE queryType = :queryType AND queryValue = :queryValue
+        ORDER BY pageOffset ASC, sortPosition ASC
+    """)
+    fun pagingSource(queryType: String, queryValue: String): PagingSource<Int, PagedStationCacheEntity>
+
+    /**
+     * Bulk upsert for a freshly fetched page. INSERT OR REPLACE handles the
+     * case where we're refreshing an already-cached page.
+     */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertPage(rows: List<PagedStationCacheEntity>)
+
+    /**
+     * Drop a single page. Called only from REFRESH-load, never APPEND.
+     * APPEND loads preserve existing rows because they can never shrink the
+     * page (a page either returns <pageSize rows and triggers endOfPaginationReached,
+     * or it returns exactly pageSize).
+     */
+    @Query("""
+        DELETE FROM paged_station_cache
+        WHERE queryType = :queryType
+          AND queryValue = :queryValue
+          AND pageOffset = :pageOffset
+    """)
+    suspend fun deletePage(queryType: String, queryValue: String, pageOffset: Int)
+
+    /**
+     * TTL check used by StationRemoteMediator on REFRESH. Returns the
+     * newest cached_at among rows at (queryType, queryValue, pageOffset),
+     * or null if nothing is cached at that offset.
+     */
+    @Query("""
+        SELECT MAX(cachedAt) FROM paged_station_cache
+        WHERE queryType = :queryType
+          AND queryValue = :queryValue
+          AND pageOffset = :pageOffset
+    """)
+    suspend fun newestCachedAt(queryType: String, queryValue: String, pageOffset: Int): Long?
+
+    /**
+     * Background housekeeping — drops cache rows older than cutoffMillis.
+     * Called from a periodic WorkManager job (separate ticket) or eagerly
+     * during RemoteMediator.initialize.
+     */
+    @Query("DELETE FROM paged_station_cache WHERE cachedAt < :cutoffMillis")
+    suspend fun deleteOlderThan(cutoffMillis: Long)
 }

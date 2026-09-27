@@ -7,6 +7,7 @@ import com.nolansoftware.airadio.data.database.AppDatabase
 import com.nolansoftware.airadio.data.database.dao.CountryDao
 import com.nolansoftware.airadio.data.database.dao.FavoritesDao
 import com.nolansoftware.airadio.data.database.dao.LanguageDao
+import com.nolansoftware.airadio.data.database.dao.PagedStationCacheDao
 import com.nolansoftware.airadio.data.database.dao.RecentlyPlayedDao
 import com.nolansoftware.airadio.data.database.dao.StationDao
 import com.nolansoftware.airadio.data.database.dao.TagDao
@@ -71,7 +72,9 @@ object AppModule {
             context,
             AppDatabase::class.java,
             AppDatabase.DATABASE_NAME
-        ).build()
+        )
+            .addMigrations(AppDatabase.MIGRATION_1_2)
+            .build()
     }
 
     @Provides
@@ -92,6 +95,10 @@ object AppModule {
     @Provides
     fun provideRecentlyPlayedDao(database: AppDatabase): RecentlyPlayedDao =
         database.recentlyPlayedDao()
+
+    @Provides
+    fun providePagedStationCacheDao(database: AppDatabase): PagedStationCacheDao =
+        database.pagedStationCacheDao()
 
     @Provides
     @Singleton
