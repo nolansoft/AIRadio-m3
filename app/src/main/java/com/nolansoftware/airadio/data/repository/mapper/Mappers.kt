@@ -132,9 +132,12 @@ fun List<LanguageEntity>.toLanguageDomain(): List<Language> = map { it.toDomain(
 fun List<TagEntity>.toTagDomain(): List<Tag> = map { it.toDomain() }
 
 /**
- * Cache entity -> domain. Mirrors StationEntity.toDomain() above; the only
- * difference is the source row (cache vs. global popular stations).
- * lastchecktime is already a Long here, no String->Long parse needed.
+ * Cache entity -> domain. Field-for-field identical to
+ * [StationEntity.toDomain] (the global-stations variant above). The
+ * substantive difference from [ApiStation.toDomain] (the API-DTO
+ * variant further up) is that [lastchecktime] is already a Long on
+ * the cache entity — no String->Long parse needed — because the
+ * RemoteMediator parsed it when writing the row in the first place.
  */
 fun PagedStationCacheEntity.toStationDomain(): Station = Station(
     stationuuid = stationuuid,

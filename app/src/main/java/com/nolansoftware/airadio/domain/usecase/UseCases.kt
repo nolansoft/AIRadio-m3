@@ -151,8 +151,11 @@ class GetStationByIdUseCase @Inject constructor(
  * [scope] (typically the screen's `viewModelScope`) so configuration
  * changes don't re-fetch from offset 0.
  *
- * [type] is one of "country" / "language" / "tag"; unknown values fall
- * back to country for forward-compatibility with new browse dimensions.
+ * [type] is one of "country" / "language" / "tag". The only callers in
+ * this codebase ([BrowseScreen]) pass exactly these three values; an
+ * unknown type causes [StationRemoteMediator] to send a request with
+ * all three filters null (which the API treats as top-votes), but that
+ * branch is not exercised today.
  */
 class GetStationsPagingUseCase @Inject constructor(
     private val repository: RadioRepository,
