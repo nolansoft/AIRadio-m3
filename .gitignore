@@ -23,6 +23,7 @@ verify_*.txt
 # ─── Runtime / orchestration state ──────────────────────────────────────
 .omc/
 .sisyphus/
+.superpowers/
 
 # ─── OS junk ─────────────────────────────────────────────────────────────
 .DS_Store
