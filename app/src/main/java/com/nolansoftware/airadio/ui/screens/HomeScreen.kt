@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -27,7 +28,6 @@ import androidx.navigation.NavController
 import com.nolansoftware.airadio.R
 import com.nolansoftware.airadio.domain.model.PlayerState
 import com.nolansoftware.airadio.domain.model.Station
-import com.nolansoftware.airadio.domain.model.SyncState
 import com.nolansoftware.airadio.ui.components.SkeletonStationCard
 import com.nolansoftware.airadio.ui.components.StationCard
 import com.nolansoftware.airadio.ui.components.SyncStatusBanner
@@ -42,13 +42,31 @@ fun HomeScreen(
     homeViewModel: HomeViewModel = hiltViewModel(),
     playerViewModel: PlayerViewModel = hiltViewModel()
 ) {
-    val popularStations by homeViewModel.popularStations.collectAsState(initial = emptyList())
-    val recentlyPlayed by homeViewModel.recentlyPlayedStations.collectAsState(initial = emptyList())
-    val localStations by homeViewModel.localStations.collectAsState(initial = emptyList())
+    // The three Room-backed lists are read with `produceState(initialValue = null)`
+    // rather than `collectAsState(initial = emptyList())`. With the latter,
+    // HomeScreen recomposing after returning from the Player screen would start
+    // for one frame with each list as `emptyList()` — and the data LazyColumn's
+    // `rememberLazyListState()` restored from `rememberSaveable` would be
+    // silently clamped to index 0 by the column's MeasurePolicy (no items yet
+    // => nothing to anchor the saved index). By the time the Room Flow re-emits
+    // the cached data, the LazyListState's firstVisibleItemIndex is already 0,
+    // and the saved scroll position is lost.
+    //
+    // `null` here is "Flow hasn't emitted yet"; an empty list is "Flow emitted
+    // and there's no data". The data LazyColumn is only composed when all three
+    // are non-null, so the saved LazyListState is never asked to anchor against
+    // an empty list.
+    val popularStations by produceState<List<Station>?>(initialValue = null) {
+        homeViewModel.popularStations.collect { value = it }
+    }
+    val recentlyPlayed by produceState<List<Station>?>(initialValue = null) {
+        homeViewModel.recentlyPlayedStations.collect { value = it }
+    }
+    val localStations by produceState<List<Station>?>(initialValue = null) {
+        homeViewModel.localStations.collect { value = it }
+    }
     val playerState by playerViewModel.playerState.observeAsState(PlayerState.Idle)
     val syncState by homeViewModel.syncState.collectAsState()
-
-    val showSkeleton = popularStations.isEmpty() && syncState is SyncState.Syncing
 
     Scaffold(
         topBar = {
@@ -67,7 +85,13 @@ fun HomeScreen(
                 onRetry = { homeViewModel.retrySync() }
             )
 
-            if (showSkeleton) {
+            // popularStations is the gating signal: the outer LazyColumn only
+            // composes once it has emitted at least once. This keeps
+            // rememberLazyListState() from being asked to anchor against an
+            // empty list, which is what was clobbering the saved scroll
+            // position when the user returned from the Player screen.
+            val popularStationsList = popularStations
+            if (popularStationsList == null) {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize()
                 ) {
@@ -77,7 +101,7 @@ fun HomeScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    if (recentlyPlayed.isNotEmpty()) {
+                    if (!recentlyPlayed.isNullOrEmpty()) {
                         item {
                             Text(
                                 text = stringResource(R.string.recently_played),
@@ -90,7 +114,17 @@ fun HomeScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 content = {
-                                    items(recentlyPlayed) { station ->
+                                    items(
+                                        items = recentlyPlayed.orEmpty(),
+                                        // Stable key on stationuuid. Without this the
+                                        // LazyColumn tracks items by index; a re-emission
+                                        // of recentlyPlayed (e.g. after addToRecentlyPlayed
+                                        // fires from PlayerViewModel) shifts every later
+                                        // section down by one and the saved first-visible
+                                        // index now points to a different station — Compose
+                                        // reconciles by jumping back to the top.
+                                        key = { it.stationuuid }
+                                    ) { station ->
                                         StationItem(
                                             station = station,
                                             navController = navController,
@@ -112,7 +146,14 @@ fun HomeScreen(
                         )
                     }
 
-                    items(popularStations) { station ->
+                    items(
+                        items = popularStationsList,
+                        // See the recentlyPlayed key comment above. popularStations
+                        // is the section the user is most likely to scroll deep
+                        // into; losing the anchor on return is what made this bug
+                        // visible.
+                        key = { it.stationuuid }
+                    ) { station ->
                         StationCard(
                             station = station,
                             isFavorite = homeViewModel.isFavorite(station.stationuuid)
@@ -129,7 +170,7 @@ fun HomeScreen(
                         )
                     }
 
-                    if (localStations.isNotEmpty()) {
+                    if (!localStations.isNullOrEmpty()) {
                         item {
                             Text(
                                 text = stringResource(R.string.local_stations),
@@ -138,7 +179,10 @@ fun HomeScreen(
                             )
                         }
 
-                        items(localStations.take(10)) { station ->
+                        items(
+                            items = localStations.orEmpty().take(10),
+                            key = { it.stationuuid }
+                        ) { station ->
                             StationCard(
                                 station = station,
                                 isFavorite = homeViewModel.isFavorite(station.stationuuid)
