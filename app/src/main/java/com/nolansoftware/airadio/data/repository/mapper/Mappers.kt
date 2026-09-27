@@ -6,6 +6,7 @@ import com.nolansoftware.airadio.data.api.model.ApiStation
 import com.nolansoftware.airadio.data.api.model.ApiTag
 import com.nolansoftware.airadio.data.database.entity.CountryEntity
 import com.nolansoftware.airadio.data.database.entity.LanguageEntity
+import com.nolansoftware.airadio.data.database.entity.PagedStationCacheEntity
 import com.nolansoftware.airadio.data.database.entity.StationEntity
 import com.nolansoftware.airadio.data.database.entity.TagEntity
 import com.nolansoftware.airadio.domain.model.Country
@@ -129,3 +130,25 @@ fun List<StationEntity>.toStationDomain(): List<Station> = map { it.toDomain() }
 fun List<CountryEntity>.toCountryDomain(): List<Country> = map { it.toDomain() }
 fun List<LanguageEntity>.toLanguageDomain(): List<Language> = map { it.toDomain() }
 fun List<TagEntity>.toTagDomain(): List<Tag> = map { it.toDomain() }
+
+/**
+ * Cache entity -> domain. Mirrors StationEntity.toDomain() above; the only
+ * difference is the source row (cache vs. global popular stations).
+ * lastchecktime is already a Long here, no String->Long parse needed.
+ */
+fun PagedStationCacheEntity.toStationDomain(): Station = Station(
+    stationuuid = stationuuid,
+    name = name,
+    url = url,
+    urlResolved = url_resolved,
+    favicon = favicon,
+    country = country,
+    countryCode = countrycode,
+    language = language,
+    tags = tags,
+    codec = codec,
+    bitrate = bitrate,
+    votes = votes,
+    lastCheckTime = lastchecktime,
+)
+
