@@ -100,6 +100,12 @@ dependencies {
     // type resolves on the compile classpath.
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-session:1.5.1")
+    // media3-exoplayer-hls pulls in media3-datasource-hls transitively. Without
+    // this, DefaultMediaSourceFactory's reflective HLS factory lookup throws
+    // ClassNotFoundException for any .m3u8 stream ("China 华语金曲500首" and
+    // similar). DASH / SmoothStreaming can be added the same way if a station
+    // ever needs them.
+    implementation("androidx.media3:media3-exoplayer-hls:1.5.1")
 
     // Legacy media support library — provides androidx.media.app.NotificationCompat.MediaStyle
     // used by RadioPlayerService for media-style notifications alongside the Media3 session.

@@ -69,16 +69,12 @@ class RadioPlayerService : Service(), LifecycleOwner {
                     if (exoPlayer.playWhenReady) {
                         currentStation?.let { station ->
                             _playerState.value = PlayerState.Playing(station)
-                            ServiceCompat.startForeground(
-                                this@RadioPlayerService,
-                                NOTIFICATION_ID,
-                                createNotification(station),
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
-                                } else {
-                                    0
-                                }
-                            )
+                            // Re-promote on STATE_READY so the notification
+                            // reflects the now-playing action set. play()
+                            // already promoted to foreground before prepare(),
+                            // so this is a no-op promotion that just refreshes
+                            // the notification.
+                            promoteToForeground(station)
                         }
                     } else {
                         currentStation?.let { station ->
@@ -162,6 +158,14 @@ class RadioPlayerService : Service(), LifecycleOwner {
         currentStation = station
         _playerState.value = PlayerState.Loading
 
+        // Promote to foreground BEFORE prepare() so the 5-second foreground-
+        // service start deadline (Android 13+) is met regardless of whether
+        // playback ever reaches STATE_READY. Without this, an immediate failure
+        // (e.g., HLS URL whose module is missing, or any other fast-fail path)
+        // leaves the service half-started and the system raises an ANR dialog
+        // that, on "OK", kills the process.
+        promoteToForeground(station)
+
         try {
             val mediaItem = MediaItem.fromUri(station.urlResolved)
             exoPlayer.setMediaItem(mediaItem)
@@ -170,6 +174,19 @@ class RadioPlayerService : Service(), LifecycleOwner {
         } catch (e: Exception) {
             _playerState.value = PlayerState.Error(e.message ?: "Failed to play station")
         }
+    }
+
+    private fun promoteToForeground(station: Station) {
+        ServiceCompat.startForeground(
+            this,
+            NOTIFICATION_ID,
+            createNotification(station),
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+            } else {
+                0
+            }
+        )
     }
 
     fun pause() {

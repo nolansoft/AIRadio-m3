@@ -58,11 +58,11 @@ fun SkeletonStationCard(modifier: Modifier = Modifier) {
                         .padding(start = 16.dp)
                         .weight(1f)
                 ) {
-                    SkeletonBar(widthFraction = 0.7f, height = 14)
+                    SkeletonBar(widthFraction = 0.7f, height = 14.dp)
                     Spacer(modifier = Modifier.height(8.dp))
-                    SkeletonBar(widthFraction = 0.4f, height = 12)
+                    SkeletonBar(widthFraction = 0.4f, height = 12.dp)
                     Spacer(modifier = Modifier.height(6.dp))
-                    SkeletonBar(widthFraction = 0.5f, height = 10)
+                    SkeletonBar(widthFraction = 0.5f, height = 10.dp)
                 }
             }
             Spacer(
@@ -103,8 +103,8 @@ fun SkeletonBrowseRow(modifier: Modifier = Modifier) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
         ) {
-            SkeletonBar(widthFraction = 0.55f, height = 16)
-            SkeletonBar(widthFraction = 0.15f, height = 12)
+            SkeletonBar(widthFraction = 0.55f, height = 16.dp)
+            SkeletonBar(widthFraction = 0.15f, height = 12.dp)
         }
     }
 }
