@@ -4,8 +4,11 @@ import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
+import androidx.paging.map
+import com.nolansoftware.airadio.data.database.dao.PagedStationCacheDao
 import com.nolansoftware.airadio.data.repository.RadioRepository
-import com.nolansoftware.airadio.data.repository.paging.StationPagingSource
+import com.nolansoftware.airadio.data.repository.mapper.toStationDomain
+import com.nolansoftware.airadio.data.repository.paging.StationRemoteMediator
 import com.nolansoftware.airadio.domain.model.Country
 import com.nolansoftware.airadio.domain.model.Language
 import com.nolansoftware.airadio.domain.model.Station
@@ -15,6 +18,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class GetPopularStationsUseCase @Inject constructor(
@@ -140,37 +144,48 @@ class GetStationByIdUseCase @Inject constructor(
 
 /**
  * Returns a cold [Flow] of [PagingData] for the country/language/tag list.
- * The flow is cached in [scope] (typically the screen's `viewModelScope`)
- * so configuration changes don't re-fetch from offset 0.
+ *
+ * The Pager is backed by [PagedStationCacheDao.pagingSource] (Room
+ * PagingSource) for cached rows plus [StationRemoteMediator] for the
+ * network fill, TTL guard, and APPEND behavior. The flow is cached in
+ * [scope] (typically the screen's `viewModelScope`) so configuration
+ * changes don't re-fetch from offset 0.
  *
  * [type] is one of "country" / "language" / "tag"; unknown values fall
  * back to country for forward-compatibility with new browse dimensions.
  */
 class GetStationsPagingUseCase @Inject constructor(
-    private val repository: RadioRepository
+    private val repository: RadioRepository,
+    private val dao: PagedStationCacheDao,
 ) {
+    @OptIn(androidx.paging.ExperimentalPagingApi::class)
     operator fun invoke(type: String, query: String, scope: CoroutineScope): Flow<PagingData<Station>> {
-        val fetch: suspend (offset: Int, limit: Int) -> List<Station> = { offset, limit ->
-            when (type) {
-                "country" -> repository.fetchStationsPage(country = query, offset = offset, limit = limit)
-                "language" -> repository.fetchStationsPage(language = query, offset = offset, limit = limit)
-                "tag" -> repository.fetchStationsPage(tag = query, offset = offset, limit = limit)
-                else -> repository.fetchStationsPage(country = query, offset = offset, limit = limit)
-            }
-        }
-        return Pager(
+        val pager = Pager(
             config = PagingConfig(
                 pageSize = PAGE_SIZE,
                 initialLoadSize = PAGE_SIZE,
-                enablePlaceholders = false
+                enablePlaceholders = false,
             ),
-            pagingSourceFactory = { StationPagingSource(fetch) }
-        ).flow.cachedIn(scope)
+            remoteMediator = StationRemoteMediator(
+                type = type,
+                query = query,
+                repository = repository,
+                dao = dao,
+            ),
+            pagingSourceFactory = { dao.pagingSource(type, query) },
+        )
+        return pager.flow
+            .map { pagingData -> pagingData.map { it.toStationDomain() } }
+            .cachedIn(scope)
     }
 
     companion object {
-        // Matches Home's DAO LIMIT (Daos.kt:18). The API caps a single
-        // request at this size; the Pager asks for it on every append.
+        // Matches the API's per-request page size; the API caps a single
+        // request at this many rows.
         const val PAGE_SIZE = 100
+
+        // 7 days. A page older than this on REFRESH is silently refetched
+        // when the network is available.
+        const val TTL_MILLIS = 7L * 24 * 60 * 60 * 1000
     }
 }

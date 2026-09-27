@@ -7,6 +7,7 @@ import androidx.paging.RemoteMediator
 import com.nolansoftware.airadio.data.database.dao.PagedStationCacheDao
 import com.nolansoftware.airadio.data.database.entity.PagedStationCacheEntity
 import com.nolansoftware.airadio.data.repository.RadioRepository
+import com.nolansoftware.airadio.domain.usecase.GetStationsPagingUseCase
 import retrofit2.HttpException
 import java.io.IOException
 
@@ -31,12 +32,8 @@ class StationRemoteMediator(
     private val query: String,
     private val repository: RadioRepository,
     private val dao: PagedStationCacheDao,
-    // TODO(Task 4): move these defaults onto GetStationsPagingUseCase
-    // (PAGE_SIZE = 100, TTL_MILLIS = 7 days) and reference them there.
-    // Hardcoded here so this file compiles independently of Task 4's
-    // additions to UseCases.kt.
-    private val pageSize: Int = 100,
-    private val ttlMillis: Long = 7L * 24 * 60 * 60 * 1000,
+    private val pageSize: Int = GetStationsPagingUseCase.PAGE_SIZE,
+    private val ttlMillis: Long = GetStationsPagingUseCase.TTL_MILLIS,
     private val now: () -> Long = { System.currentTimeMillis() },
 ) : RemoteMediator<Int, PagedStationCacheEntity>() {
 
