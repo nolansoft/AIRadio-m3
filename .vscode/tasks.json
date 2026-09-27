@@ -1,0 +1,37 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "AIRadio: Build Install Run",
+            "type": "shell",
+            "command": "./gradlew :app:assembleDebug --no-daemon && adb install -r app/build/outputs/apk/debug/app-debug.apk && adb shell monkey -p com.nolansoftware.airadio 1",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "AIRadio: Logcat",
+            "type": "shell",
+            "command": "adb logcat --uid=10016",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            },
+            "problemMatcher": []
+        }
+    ]
+}
