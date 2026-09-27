@@ -183,9 +183,6 @@ class RadioRepository @Inject constructor(
                         }
                         val total = stations.size
                         val entities = stations.toStationEntities()
-                        // Emit progress in coarse batches so we don't spam the StateFlow.
-                        val batchSize = maxOf(1, total / 10)
-                        var processed = 0
                         _syncState.value = SyncState.Syncing(
                             SyncState.Syncing.Stage.STATIONS,
                             processed = 0,
@@ -193,10 +190,9 @@ class RadioRepository @Inject constructor(
                         )
                         stationDao.clearAllStations()
                         stationDao.insertStations(entities)
-                        processed = total
                         _syncState.value = SyncState.Syncing(
                             SyncState.Syncing.Stage.STATIONS,
-                            processed = processed,
+                            processed = total,
                             total = total
                         )
                     }
