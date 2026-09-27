@@ -141,7 +141,13 @@ private fun BrowseContent(
         }
     } else {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(items) { (name, count) ->
+            items(
+                items = items,
+                // Pair.first is the country / language / tag name; the API returns
+                // unique names within each browse dimension, so it's a stable key
+                // for LazyColumn identity tracking.
+                key = { it.first }
+            ) { (name, count) ->
                 BrowseItemCard(
                     name = name,
                     count = count,

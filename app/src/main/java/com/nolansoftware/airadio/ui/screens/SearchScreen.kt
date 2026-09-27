@@ -94,7 +94,10 @@ fun SearchScreen(
                     LazyColumn(
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        items(searchResults) { station ->
+                        items(
+                            items = searchResults,
+                            key = { it.stationuuid }
+                        ) { station ->
                             StationCard(
                                 station = station,
                                 isFavorite = searchViewModel.isFavorite(station.stationuuid)

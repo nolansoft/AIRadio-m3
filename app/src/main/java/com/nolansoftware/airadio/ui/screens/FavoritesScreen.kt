@@ -80,7 +80,10 @@ fun FavoritesScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    items(favoriteStations) { station ->
+                    items(
+                        items = favoriteStations,
+                        key = { it.stationuuid }
+                    ) { station ->
                         StationCard(
                             station = station,
                             isFavorite = true,
