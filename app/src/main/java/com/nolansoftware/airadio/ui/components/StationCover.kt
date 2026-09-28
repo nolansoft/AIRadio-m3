@@ -55,10 +55,10 @@ fun StationCover(
         modifier = modifier.clip(RoundedCornerShape(cornerRadius)),
         contentScale = ContentScale.Crop,
         loading = {
-            GradientBackdrop(seed = seed, cornerRadius = cornerRadius)
+            GradientBackdrop(seed = seed, cornerRadius = cornerRadius, modifier = Modifier.matchParentSize())
         },
         error = {
-            GradientBackdrop(seed = seed, cornerRadius = cornerRadius)
+            GradientBackdrop(seed = seed, cornerRadius = cornerRadius, modifier = Modifier.matchParentSize())
         },
         success = { state ->
             Image(
