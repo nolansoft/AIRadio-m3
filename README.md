@@ -43,7 +43,7 @@ A complete production-ready Internet Radio app for Android built with modern arc
 ### API Integration
 
 Uses the public Radio Browser API:
-- Base URL: https://api.radio-browser.info
+- Base URL: https://de1.api.radio-browser.info/ (pinned to the de1 region; other regions: nl1, at1, etc. — bare `api.radio-browser.info` is GeoIP-balanced and 404s in many networks)
 - Endpoints: /stations, /search, /countries, /languages, /tags
 
 ### Project Structure

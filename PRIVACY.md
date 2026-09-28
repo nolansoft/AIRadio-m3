@@ -2,7 +2,7 @@
 
 **Effective:** 2026-09-28
 **App:** AIRadio (`com.nolansoftware.airadio`)
-**Author:** nolan@…
+**Author:** yfli@163.com
 
 ## What data AIRadio stores on your device
 
@@ -43,4 +43,4 @@ AIRadio does **not** request location, contacts, microphone, camera, or storage 
 
 ## Contact
 
-For privacy questions: nolan@…
+For privacy questions: yfli@163.com

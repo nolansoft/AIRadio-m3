@@ -6,7 +6,8 @@ This product includes software developed by third parties:
   Retrofit, OkHttp, Coil, Paging, Coroutines, Espresso:
   Copyright (C) The Android Open Source Project and individual contributors.
   Licensed under the Apache License, Version 2.0.
-- JUnit:
+  - Espresso is test-only (not shipped in release binaries).
+- JUnit (test-only, not shipped in release binaries):
   Copyright (C) Eclipse Foundation.
   Licensed under the Eclipse Public License 1.0.
 - Radio Browser API data:
