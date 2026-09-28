@@ -3,16 +3,21 @@ package com.nolansoftware.airadio.ui.screens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -74,106 +79,115 @@ fun StationListScreen(
             )
         }
     ) { innerPadding ->
-        Column(
+        val refresh = pagingItems.loadState.refresh
+        val append = pagingItems.loadState.append
+
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 160.dp),
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(innerPadding),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            val refresh = pagingItems.loadState.refresh
-            val append = pagingItems.loadState.append
-
-            when {
-                // First-page load in flight and we have nothing to show yet —
-                // render skeletons so the screen doesn't flash empty.
-                refresh is LoadState.Loading && pagingItems.itemCount == 0 -> {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(SKELETON_STATION_COUNT) { SkeletonStationCard() }
-                    }
-                }
-                // First-page load failed (and nothing was previously cached
-                // in memory) — show a centered error with a Retry button.
-                refresh is LoadState.Error && pagingItems.itemCount == 0 -> {
+            // First-page load in flight and we have nothing to show yet —
+            // render skeletons so the screen doesn't flash empty.
+            if (refresh is LoadState.Loading && pagingItems.itemCount == 0) {
+                items(count = SKELETON_STATION_COUNT) { SkeletonStationCard() }
+            }
+            // First-page load failed (and nothing was previously cached
+            // in memory) — show a centered error with a Retry button that
+            // spans the full grid width.
+            else if (refresh is LoadState.Error && pagingItems.itemCount == 0) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
                     ErrorPanel(
                         message = refresh.error.message
                             ?: "Couldn't load stations. Check your connection.",
                         onRetry = { pagingItems.retry() }
                     )
                 }
-                // Either loaded successfully or the user navigated away from
-                // a refresh error after items had already landed.
-                else -> {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(
-                            count = pagingItems.itemCount,
-                            key = pagingItems.itemKey { it.stationuuid }
-                        ) { index ->
-                            val station = pagingItems[index] ?: return@items
-                            StationCard(
+            }
+            // Either loaded successfully or the user navigated away from
+            // a refresh error after items had already landed.
+            else {
+                items(
+                    count = pagingItems.itemCount,
+                    key = pagingItems.itemKey { it.stationuuid }
+                ) { index ->
+                    val station = pagingItems[index] ?: return@items
+                    StationCard(
+                        station = station,
+                        isFavorite = stationListViewModel.isFavorite(station.stationuuid)
+                            .collectAsState(initial = false).value,
+                        onStationClick = {
+                            handleStationClick(
                                 station = station,
-                                isFavorite = stationListViewModel.isFavorite(station.stationuuid)
-                                    .collectAsState(initial = false).value,
-                                onStationClick = {
-                                    handleStationClick(
-                                        station = station,
-                                        navController = navController,
-                                        playerViewModel = playerViewModel,
-                                        playerState = playerState
-                                    )
-                                },
-                                onToggleFavorite = { stationListViewModel.toggleFavorite(it) }
+                                navController = navController,
+                                playerViewModel = playerViewModel,
+                                playerState = playerState
                             )
-                        }
+                        },
+                        onToggleFavorite = { stationListViewModel.toggleFavorite(it) }
+                    )
+                }
 
-                        // Append footer: spinner while a follow-up page is
-                        // in flight, or a tiny inline error message if the
-                        // next page failed (Retry triggers pagingItems.retry()
-                        // which re-fetches the failed page).
-                        when (append) {
-                            is LoadState.Loading -> item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator(modifier = Modifier.padding(8.dp))
+                // Append footer: spinner while a follow-up page is in
+                // flight, or a tiny inline retry button if the next page
+                // failed (Retry triggers pagingItems.retry() which
+                // re-fetches the failed page). Both span the full grid
+                // width so they don't get squeezed into a single cell.
+                when (append) {
+                    is LoadState.Loading -> {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    strokeWidth = 3.dp,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+                        }
+                    }
+                    is LoadState.Error -> {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                FilledTonalButton(onClick = { pagingItems.retry() }) {
+                                    Text("Retry loading more")
                                 }
                             }
-                            is LoadState.Error -> item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Button(onClick = { pagingItems.retry() }) {
-                                        Text("Retry loading more")
-                                    }
-                                }
-                            }
-                            else -> Unit
                         }
+                    }
+                    else -> Unit
+                }
 
-                        // Empty result after a successful load (e.g. a tag
-                        // that exists in the catalogue but no station matches
-                        // in /json/stations/search?tag=...).
-                        if (pagingItems.itemCount == 0 &&
-                            refresh is LoadState.NotLoading
+                // Empty result after a successful load (e.g. a tag that
+                // exists in the catalogue but no station matches in
+                // /json/stations/search?tag=...).
+                if (pagingItems.itemCount == 0 &&
+                    refresh is LoadState.NotLoading
+                ) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "No stations found",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
+                            Text(
+                                text = "No stations found",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
