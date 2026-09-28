@@ -16,6 +16,7 @@ import com.nolansoftware.airadio.data.database.dao.TagDao
 import com.nolansoftware.airadio.data.repository.RadioRepository
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.nolansoftware.airadio.BuildConfig
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -42,7 +43,11 @@ object AppModule {
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BASIC
+            // Log URLs/methods/status in debug builds only. In release builds,
+            // logging is silent (Level.NONE) so we never accidentally log
+            // auth headers or PII if a future contributor adds them.
+            level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC
+                    else HttpLoggingInterceptor.Level.NONE
         }
         // Default OkHttp timeouts (10s) are too short for the
         // /json/stations?limit=10000 response (often >5 MB). Bump read/write

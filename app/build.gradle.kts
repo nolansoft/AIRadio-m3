@@ -5,6 +5,7 @@ plugins {
     id("kotlin-parcelize")
     id("com.google.dagger.hilt.android")
     id("androidx.navigation.safeargs.kotlin")
+    id("com.jaredsburrows.license")
 }
 
 android {
@@ -42,17 +43,18 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     // Compose Compiler 1.5.5 is the verified match for Kotlin 1.9.20. The
     // previous 1.5.3 only supports Kotlin 1.9.10.
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.5"
     }
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
-    }
+}
+
+configure<com.jaredsburrows.license.LicenseReportExtension> {
+    generateHtmlReport = true
+    copyHtmlReportToAssets = false
 }
 
 dependencies {
