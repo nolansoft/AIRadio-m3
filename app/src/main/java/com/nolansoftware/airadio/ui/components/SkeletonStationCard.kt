@@ -1,18 +1,16 @@
 package com.nolansoftware.airadio.ui.components
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -20,91 +18,66 @@ import androidx.compose.ui.unit.dp
 
 /**
  * Placeholder card matching the visual footprint of [StationCard]. Uses
- * surfaceVariant as the placeholder tint; no shimmer animation so we avoid
- * pulling in an extra dependency. Static blocks read clearly as "loading"
- * even at rest.
+ * surfaceContainerHigh blocks for the cover and surfaceContainerHighest
+ * bars for text — no shimmer animation so we avoid pulling in an extra
+ * dependency. Static blocks read clearly as "loading" even at rest.
+ *
+ * Geometry mirrors [StationCard]: large shape, 1:1 cover aspect ratio,
+ * 12.dp horizontal / 10.dp vertical metadata padding.
  */
 @Composable
 fun SkeletonStationCard(modifier: Modifier = Modifier) {
-    val placeholderColor = MaterialTheme.colorScheme.surfaceVariant
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = placeholderColor)
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 1.dp,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                Spacer(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .height(64.dp)
-                        .width(64.dp)
-                )
-                Column(
-                    modifier = Modifier
-                        .padding(start = 16.dp)
-                        .weight(1f)
-                ) {
-                    SkeletonBar(widthFraction = 0.7f, height = 14.dp)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    SkeletonBar(widthFraction = 0.4f, height = 12.dp)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    SkeletonBar(widthFraction = 0.5f, height = 10.dp)
-                }
-            }
-            Spacer(
+        Column {
+            Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(20.dp))
+                    .aspectRatio(1f)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
             )
+            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                SkeletonBar(widthFraction = 0.7f, height = 16.dp)
+                Spacer(Modifier.height(8.dp))
+                SkeletonBar(widthFraction = 0.4f, height = 12.dp)
+                Spacer(Modifier.height(8.dp))
+                SkeletonBar(widthFraction = 0.3f, height = 10.dp)
+            }
+        }
+    }
+}
+
+/**
+ * Placeholder row matching the visual footprint of [BrowseItemCard] while
+ * the countries / languages / tags lists are still loading.
+ *
+ * [BrowseScreen] still uses a LazyColumn of rows for browse entries, so this
+ * keeps the old horizontal footprint intentionally.
+ */
+@Composable
+fun SkeletonBrowseRow(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 1.dp,
+    ) {
+        Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
+            SkeletonBar(widthFraction = 0.5f, height = 16.dp)
         }
     }
 }
 
 @Composable
-fun SkeletonBar(widthFraction: Float, height: androidx.compose.ui.unit.Dp) {
+private fun SkeletonBar(widthFraction: Float, height: androidx.compose.ui.unit.Dp) {
     Spacer(
         modifier = Modifier
             .fillMaxWidth(widthFraction)
             .height(height)
             .clip(RoundedCornerShape(4.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
     )
-}
-
-@Composable
-fun SkeletonBrowseRow(modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-        ) {
-            SkeletonBar(widthFraction = 0.55f, height = 16.dp)
-            SkeletonBar(widthFraction = 0.15f, height = 12.dp)
-        }
-    }
 }
