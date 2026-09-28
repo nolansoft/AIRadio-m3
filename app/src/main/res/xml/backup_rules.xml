@@ -20,4 +20,6 @@
     <include domain="sharedpref" path="."/>
     <include domain="database" path="."/>
     <exclude domain="sharedpref" path="com.google.android.apps.common.proguard.flags.xml"/>
+    <!-- Listening history (favorites + recently-played Room tables) is private and excluded from backup. -->
+    <exclude domain="database" path="."/>
 </full-backup-content>
