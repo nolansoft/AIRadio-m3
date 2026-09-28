@@ -18,8 +18,7 @@
      See https://developer.android.com/guide/topics/data/autobackup for details. -->
 <full-backup-content>
     <include domain="sharedpref" path="."/>
-    <include domain="database" path="."/>
     <exclude domain="sharedpref" path="com.google.android.apps.common.proguard.flags.xml"/>
-    <!-- Listening history (favorites + recently-played Room tables) is private and excluded from backup. -->
-    <exclude domain="database" path="."/>
+    <!-- database domain (Room: favorites + recently-played) is intentionally NOT included,
+         so the listening history is excluded from backup by absence. -->
 </full-backup-content>
