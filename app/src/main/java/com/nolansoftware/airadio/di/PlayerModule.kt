@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 package com.nolansoftware.airadio.di
 
 import android.content.Context

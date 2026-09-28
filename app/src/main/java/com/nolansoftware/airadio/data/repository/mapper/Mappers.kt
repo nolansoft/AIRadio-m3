@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 package com.nolansoftware.airadio.data.repository.mapper
 
 import com.nolansoftware.airadio.data.api.model.ApiCountry

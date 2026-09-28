@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // app/src/main/java/com/nolansoftware/airadio/ui/theme/Color.kt
 package com.nolansoftware.airadio.ui.theme
 
