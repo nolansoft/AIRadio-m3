@@ -60,8 +60,10 @@ fun FavoriteHeart(
                 indication = ripple(bounded = false, radius = 20.dp),
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    scope.launch { scale.animateTo(1.3f, spring(stiffness = 400f, dampingRatio = 0.6f)) }
-                    scope.launch { scale.animateTo(1f, spring(stiffness = 400f, dampingRatio = 0.6f)) }
+                    scope.launch {
+                        scale.animateTo(1.3f, spring(stiffness = 400f, dampingRatio = 0.6f))
+                        scale.animateTo(1f, spring(stiffness = 400f, dampingRatio = 0.6f))
+                    }
                     onToggle()
                 }
             ),
