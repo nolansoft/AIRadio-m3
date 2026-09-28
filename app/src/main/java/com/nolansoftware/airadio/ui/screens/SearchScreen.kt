@@ -2,11 +2,13 @@ package com.nolansoftware.airadio.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
@@ -91,27 +93,44 @@ fun SearchScreen(
                         )
                     }
                 } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        items(
-                            items = searchResults,
-                            key = { it.stationuuid }
-                        ) { station ->
-                            StationCard(
-                                station = station,
-                                isFavorite = searchViewModel.isFavorite(station.stationuuid)
-                                    .collectAsState(initial = false).value,
-                                onStationClick = {
-                                    handleStationClick(
-                                        station = station,
-                                        navController = navController,
-                                        playerViewModel = playerViewModel,
-                                        playerState = playerState
-                                    )
-                                },
-                                onToggleFavorite = { searchViewModel.toggleFavorite(it) }
-                            )
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Text(
+                            text = "Results for \"$searchQuery\"",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(
+                                start = 20.dp,
+                                top = 8.dp,
+                                end = 20.dp,
+                                bottom = 8.dp,
+                            ),
+                        )
+                        LazyVerticalGrid(
+                            columns = GridCells.Adaptive(minSize = 160.dp),
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            items(
+                                items = searchResults,
+                                key = { it.stationuuid }
+                            ) { station ->
+                                StationCard(
+                                    station = station,
+                                    isFavorite = searchViewModel.isFavorite(station.stationuuid)
+                                        .collectAsState(initial = false).value,
+                                    onStationClick = {
+                                        handleStationClick(
+                                            station = station,
+                                            navController = navController,
+                                            playerViewModel = playerViewModel,
+                                            playerState = playerState
+                                        )
+                                    },
+                                    onToggleFavorite = { searchViewModel.toggleFavorite(it) }
+                                )
+                            }
                         }
                     }
                 }
