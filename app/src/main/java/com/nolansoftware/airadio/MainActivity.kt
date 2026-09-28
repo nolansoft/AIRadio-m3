@@ -11,6 +11,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -81,11 +82,11 @@ fun MainApp() {
                         NavigationBarItem(
                             icon = {
                                 Icon(
-                                    imageVector = screen.icon,
+                                    imageVector = if (isSelected) screen.iconFilled else screen.iconOutlined,
                                     contentDescription = screen.title
                                 )
                             },
-                            label = { Text(screen.title) },
+                            label = { Text(screen.title, style = MaterialTheme.typography.labelMedium) },
                             selected = isSelected,
                             onClick = {
                                 navController.navigate(screen.route) {
@@ -95,7 +96,15 @@ fun MainApp() {
                                     launchSingleTop = true
                                     restoreState = true
                                 }
-                            }
+                            },
+                            alwaysShowLabel = true,
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                                selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         )
                     }
                 }
