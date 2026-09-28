@@ -134,9 +134,9 @@ fun MainApp() {
             ) { backStackEntry ->
                 val stationId = backStackEntry.arguments?.getString("stationId") ?: ""
                 PlayerScreen(
-                    navController = navController,
+                    onBack = { navController.popBackStack() },
                     stationId = stationId,
-                    playerViewModel = playerViewModel
+                    viewModel = playerViewModel
                 )
             }
             composable(
