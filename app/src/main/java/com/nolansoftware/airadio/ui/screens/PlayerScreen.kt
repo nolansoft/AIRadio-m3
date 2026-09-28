@@ -237,7 +237,7 @@ private fun PlayerContent(
                 Text("Stop")
             }
             BigPlayPause(
-                isPlaying = playerState is PlayerState.Playing,
+                playerState = playerState,
                 onClick = onPlayPause,
             )
         }
@@ -282,11 +282,23 @@ private fun PlayerContent(
 }
 
 @Composable
-private fun BigPlayPause(isPlaying: Boolean, onClick: () -> Unit) {
+private fun BigPlayPause(playerState: PlayerState, onClick: () -> Unit) {
     val scale = remember { Animatable(1f) }
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
     val interactionSource = remember { MutableInteractionSource() }
+
+    // Reduce visual prominence when a stream error is active so the error icon
+    // + bottom Error block read as the primary feedback. The container's
+    // primaryContainer color still keeps the button visually findable.
+    val containerColor = when (playerState) {
+        is PlayerState.Error -> MaterialTheme.colorScheme.errorContainer
+        else -> MaterialTheme.colorScheme.primaryContainer
+    }
+    val iconTint = when (playerState) {
+        is PlayerState.Error -> MaterialTheme.colorScheme.onErrorContainer
+        else -> MaterialTheme.colorScheme.onPrimaryContainer
+    }
 
     Surface(
         modifier = Modifier
@@ -304,27 +316,58 @@ private fun BigPlayPause(isPlaying: Boolean, onClick: () -> Unit) {
                     onClick()
                 }
             ),
-        color = MaterialTheme.colorScheme.primaryContainer,
+        color = containerColor,
         tonalElevation = 6.dp,
         shape = CircleShape,
     ) {
         Box(contentAlignment = Alignment.Center) {
             AnimatedContent(
-                targetState = isPlaying,
+                targetState = playerState,
                 transitionSpec = {
                     (scaleIn(initialScale = 0.7f, animationSpec = tween(150)) + fadeIn(tween(150)))
                         .togetherWith(fadeOut(tween(100)))
                 },
-                label = "play-pause",
-            ) { playing ->
-                Icon(
-                    imageVector = if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    contentDescription = if (playing) "Pause" else "Play",
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .graphicsLayer { scaleX = scale.value; scaleY = scale.value },
-                )
+                label = "play-pause-state",
+            ) { state ->
+                when (state) {
+                    is PlayerState.Loading -> {
+                        // Stream is preparing — show a spinner INSIDE the button so the
+                        // user sees the affordance they tapped is doing something. Earlier
+                        // the only loading indicator was a thin LinearProgressIndicator
+                        // at the bottom of the screen — easy to miss and the user could
+                        // not tell whether the stream was buffering vs. broken.
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(40.dp),
+                            color = iconTint,
+                            strokeWidth = 4.dp,
+                        )
+                    }
+                    is PlayerState.Error -> {
+                        // Stream failed — surface an error icon on the button itself.
+                        // The bottom Error block (with message + Retry) is still rendered
+                        // for the textual reason, but the button icon change makes the
+                        // failure state visible even if the user is focused on the controls.
+                        Icon(
+                            imageVector = Icons.Outlined.ErrorOutline,
+                            contentDescription = "Stream error — tap to retry",
+                            tint = iconTint,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .graphicsLayer { scaleX = scale.value; scaleY = scale.value },
+                        )
+                    }
+                    else -> {
+                        val playing = state is PlayerState.Playing
+                        Icon(
+                            imageVector = if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            contentDescription = if (playing) "Pause" else "Play",
+                            tint = iconTint,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .graphicsLayer { scaleX = scale.value; scaleY = scale.value },
+                        )
+                    }
+                }
             }
         }
     }
