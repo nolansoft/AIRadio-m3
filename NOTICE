@@ -1,0 +1,17 @@
+AIRadio
+Copyright 2026 Nolan (yfli@163.com)
+
+This product includes software developed by third parties:
+- Android Gradle Plugin, Kotlin, AndroidX, Compose, Room, Hilt, Media3,
+  Retrofit, OkHttp, Coil, Paging, Coroutines, Espresso:
+  Copyright (C) The Android Open Source Project and individual contributors.
+  Licensed under the Apache License, Version 2.0.
+- JUnit:
+  Copyright (C) Eclipse Foundation.
+  Licensed under the Eclipse Public License 1.0.
+- Radio Browser API data:
+  Licensed under CC0 1.0 Universal (https://creativecommons.org/publicdomain/zero/1.0/).
+
+This product includes software generated with the assistance of AI coding
+assistants under human direction. The human author is responsible for
+architecture, prompt engineering, code review, and final selection.

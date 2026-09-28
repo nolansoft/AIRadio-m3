@@ -1,5 +1,13 @@
 ## AI Radio - Android Internet Radio App
 
+## Development Process
+
+The code in this repository was generated with the assistance of AI coding
+assistants under human direction. The human author (Nolan, yfli@163.com) is
+responsible for architecture design, prompt engineering, code review,
+and final selection. This disclosure is provided in the interest of
+transparent AI-assisted provenance.
+
 A complete production-ready Internet Radio app for Android built with modern architecture and Jetpack Compose.
 
 ### Features
@@ -92,6 +100,13 @@ app/
 - Error handling for stream failures
 - Support for various audio codecs (MP3, AAC, OGG, etc.)
 
-### License
+## License
 
-This project uses the Radio Browser API (https://www.radio-browser.info/) which is licensed under CC0 1.0 Universal.
+- AIRadio source code: [Apache License 2.0](LICENSE) — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+- Every `.kt` source file carries `// SPDX-License-Identifier: Apache-2.0` at the top.
+
+### Third-party attribution
+
+- **Radio station metadata** streamed from the [Radio Browser API](https://www.radio-browser.info/)
+  is licensed under [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/).
+- Embedded open-source libraries are credited in [NOTICE](NOTICE).
