@@ -77,7 +77,7 @@ private fun SkeletonBar(widthFraction: Float, height: androidx.compose.ui.unit.D
         modifier = Modifier
             .fillMaxWidth(widthFraction)
             .height(height)
-            .clip(RoundedCornerShape(4.dp))
+            .clip(MaterialTheme.shapes.extraSmall)
             .background(MaterialTheme.colorScheme.surfaceContainerHighest)
     )
 }

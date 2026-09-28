@@ -169,11 +169,11 @@ private fun PlayerContent(
                 .size(280.dp)
                 .shadow(
                     elevation = 12.dp,
-                    shape = RoundedCornerShape(20.dp),
+                    shape = MaterialTheme.shapes.large,
                     ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                     spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
                 )
-                .clip(RoundedCornerShape(20.dp))
+                .clip(MaterialTheme.shapes.large)
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
         ) {
             StationCover(
