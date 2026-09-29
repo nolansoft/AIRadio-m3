@@ -193,9 +193,17 @@ class GetStationsPagingUseCase @Inject constructor(
     }
 
     companion object {
-        // Matches the API's per-request page size; the API caps a single
-        // request at this many rows.
-        const val PAGE_SIZE = 100
+        // Sized to fit the full result set of typical browse categories in
+        // a single API call. The Radio Browser /json/stations/search endpoint
+        // supports up to 100,000 rows per request (default limit is 100k);
+        // 5000 is well under that and covers any country / language / tag
+        // with < ~5k matching stations in one round-trip. For categories
+        // larger than this, paging still kicks in via APPEND, but the
+        // result set is computed against a re-ranked list between calls so
+        // subsequent pages tend to overlap with the first — that's the
+        // "max 100 stations" bug we're avoiding by sizing this generously.
+        // Single-shot fetch for the common case, paginated as a fallback.
+        const val PAGE_SIZE = 5000
 
         // 7 days. A page older than this on REFRESH is silently refetched
         // when the network is available.
