@@ -48,6 +48,15 @@ class ConsentManager @Inject constructor() {
     private val _state = MutableStateFlow<ConsentState>(ConsentState.Unknown)
     val state: StateFlow<ConsentState> = _state
 
+    // Mirrors ConsentInformation.privacyOptionsRequirementStatus == REQUIRED.
+    // Only true on devices where UMP has confirmed the user can re-open the
+    // privacy options form (typically EEA after consent is obtained). On
+    // WebViewIncompatible / OfflineFallback / non-EEA devices this stays false
+    // so the UI can disable the "Manage privacy options" button instead of
+    // letting the user tap a button that silently closes the sheet.
+    private val _privacyOptionsRequired = MutableStateFlow(false)
+    val privacyOptionsRequired: StateFlow<Boolean> = _privacyOptionsRequired
+
     fun initialize(app: Application) {
         // UMP 3.2.0: getConsentInformation(Context) is context-safe. The actual
         // requestConsentInfoUpdate requires an Activity, so we defer that call to
@@ -70,6 +79,10 @@ class ConsentManager @Inject constructor() {
         // state is WebViewIncompatible.
         if (BlueStacksWebViewDetector.isBrokenWebViewEnvironment(activity)) {
             _state.value = ConsentState.WebViewIncompatible
+            // Explicit: on broken emulators UMP is bypassed entirely, so
+            // privacyOptionsRequirementStatus is never read from the server.
+            // The button stays disabled by default (false).
+            _privacyOptionsRequired.value = false
             onComplete(ConsentState.WebViewIncompatible)
             return
         }
@@ -80,6 +93,9 @@ class ConsentManager @Inject constructor() {
             activity,
             params,
             OnConsentInfoUpdateSuccessListener {
+                _privacyOptionsRequired.value =
+                    info.privacyOptionsRequirementStatus ==
+                        PrivacyOptionsRequirementStatus.REQUIRED
                 UserMessagingPlatform.loadAndShowConsentFormIfRequired(
                     activity,
                     OnConsentFormDismissedListener { _ ->

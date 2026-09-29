@@ -91,6 +91,14 @@ fun HomeScreen(
     val playerState by playerViewModel.playerState.observeAsState(PlayerState.Idle)
     val syncState by homeViewModel.syncState.collectAsState()
 
+    // UMP says the user can re-open the privacy options form only when
+    // privacyOptionsRequirementStatus == REQUIRED (typically EEA after consent
+    // is obtained). On WebViewIncompatible / OfflineFallback / non-EEA
+    // devices this stays false and the "Manage privacy options" button
+    // renders disabled — otherwise tapping it silently closes the sheet
+    // because ConsentManager.showPrivacyOptions no-ops.
+    val privacyOptionsRequired by consentManager.privacyOptionsRequired.collectAsState()
+
     // Privacy / consent controls (Google User Messaging Platform). The gear icon
     // used to live on SearchScreen, but Search is a per-task input surface —
     // consent is a global, low-frequency setting. Home is the most-visited
@@ -123,12 +131,27 @@ fun HomeScreen(
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.padding(bottom = 12.dp),
                     )
-                    TextButton(onClick = {
-                        consentManager.showPrivacyOptions(context as android.app.Activity) {
-                            showPrivacySheet = false
-                        }
-                    }) {
+                    TextButton(
+                        onClick = {
+                            consentManager.showPrivacyOptions(context as android.app.Activity) {
+                                showPrivacySheet = false
+                            }
+                        },
+                        enabled = privacyOptionsRequired,
+                    ) {
                         Text(stringResource(R.string.manage_privacy_options))
+                    }
+                    // When UMP says privacy options can't be shown (WebView
+                    // incompatible / OfflineFallback / non-EEA), explain why
+                    // the button above is disabled — otherwise the user just
+                    // sees a grey button with no context.
+                    if (!privacyOptionsRequired) {
+                        Text(
+                            text = stringResource(R.string.privacy_options_unavailable),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
                     }
                     Spacer(Modifier.height(8.dp))
                     TextButton(onClick = {

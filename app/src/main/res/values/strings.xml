@@ -32,4 +32,5 @@
     <string name="privacy_settings_title">Privacy &amp; settings</string>
     <string name="manage_privacy_options">Manage privacy options</string>
     <string name="privacy_policy">Privacy policy</string>
+    <string name="privacy_options_unavailable">Google UMP couldn\'t initialize on this device. Privacy options are unavailable here.</string>
 </resources>
