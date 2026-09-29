@@ -142,12 +142,18 @@ private fun BrowseContent(
     tabIndex: Int,
     onItemClick: (String) -> Unit
 ) {
-    if (isLoading) {
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
+    // Single stable LazyColumn — skeleton vs real items are picked inside the
+    // `items { }` block. Same rationale as HomeScreen: swapping two
+    // LazyColumns in/out of composition changes the column's composition-position
+    // key, breaking the `rememberSaveable` for `LazyListState` and resetting the
+    // scroll position when the user returns from StationList. Keeping one
+    // column with conditional content lets the saved scroll index anchor
+    // against the skeleton rows during initial load and re-anchor against the
+    // matching real row once the data Flow emits.
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        if (isLoading) {
             items(SKELETON_BROWSE_COUNT) { SkeletonBrowseRow() }
-        }
-    } else {
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
+        } else {
             items(
                 items = items,
                 // Pair.first is the country / language / tag name; the API returns

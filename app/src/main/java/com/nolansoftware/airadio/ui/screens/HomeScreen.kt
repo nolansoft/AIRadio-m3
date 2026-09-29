@@ -109,44 +109,55 @@ fun HomeScreen(
             val popularStationsList = popularStations.orEmpty()
             val recentlyPlayedList = recentlyPlayed.orEmpty()
             val localStationsList = localStations.orEmpty()
-            // Skeleton stays up while the Flow hasn't emitted yet, OR while a
-            // sync is in flight and the Flow has only emitted an empty list.
-            val showSkeleton = popularStations == null ||
+            // The grid is ALWAYS composed — skeleton items vs real items are
+            // picked INSIDE the grid's `items { }` block. This keeps the
+            // LazyVerticalGrid at a single stable position in the composition
+            // tree, so its `rememberLazyGridState()` (which uses rememberSaveable
+            // under the hood) survives Player → back navigation. The previous
+            // structure conditionally swapped between two `LazyVerticalGrid`s
+            // (skeleton vs data), which changed the grid's composition-position
+            // key between frames; the saved `LazyGridState.firstVisibleItemIndex`
+            // could not anchor against the new grid and was silently clamped
+            // to 0, losing the user's scroll position on return.
+            //
+            // The skeleton items rendered here share the LazyVerticalGrid's
+            // position with the real items that replace them, so the saved
+            // scroll index anchors against skeleton tiles during initial load
+            // and re-anchors against the matching real tile once the Flow
+            // emits — no scroll-position jump.
+            val isInitialLoad = popularStations == null ||
                 (popularStationsList.isEmpty() && syncState is SyncState.Syncing)
 
-            if (showSkeleton) {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 160.dp),
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
+            // Single LazyVerticalGrid as the scrollable container. Earlier
+            // versions of this file used an outer LazyColumn with each
+            // section's LazyVerticalGrid nested inside an `item {}` —
+            // that crashes at first launch with `IllegalStateException:
+            // Vertically scrollable component was measured with an infinity
+            // maximum height constraints` because nested vertically-scrollable
+            // Compose containers are forbidden (the outer LazyColumn gives
+            // the inner grid infinity max height, which grids cannot have).
+            // The fix is to flatten everything into one grid: section headers
+            // and the Recently Played carousel become full-width items via
+            // `GridItemSpan(maxLineSpan)`, and the station cards become
+            // regular grid cells. Horizontal scrolling inside a full-width
+            // grid item works because LazyRow only needs bounded vertical
+            // constraints, which it gets from the SectionHeader above it
+            // plus its tallest card (aspectRatio(1f) → fixed height).
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 160.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (isInitialLoad) {
+                    // Skeleton tiles occupy the SAME grid position as the real
+                    // items will. The grid's LazyGridState anchors against
+                    // these tiles, and the saved scroll index rides across the
+                    // skeleton→data swap because the LazyVerticalGrid's
+                    // composition-position key is unchanged.
                     items(count = SKELETON_COUNT) { SkeletonStationCard() }
-                }
-            } else {
-                // Single LazyVerticalGrid as the scrollable container. Earlier
-                // versions of this file used an outer LazyColumn with each
-                // section's LazyVerticalGrid nested inside an `item {}` —
-                // that crashes at first launch with `IllegalStateException:
-                // Vertically scrollable component was measured with an infinity
-                // maximum height constraints` because nested vertically-scrollable
-                // Compose containers are forbidden (the outer LazyColumn gives
-                // the inner grid infinity max height, which grids cannot have).
-                // The fix is to flatten everything into one grid: section headers
-                // and the Recently Played carousel become full-width items via
-                // `GridItemSpan(maxLineSpan)`, and the station cards become
-                // regular grid cells. Horizontal scrolling inside a full-width
-                // grid item works because LazyRow only needs bounded vertical
-                // constraints, which it gets from the SectionHeader above it
-                // plus its tallest card (aspectRatio(1f) → fixed height).
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 160.dp),
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
+                } else {
                     if (recentlyPlayedList.isNotEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
                             Column {
