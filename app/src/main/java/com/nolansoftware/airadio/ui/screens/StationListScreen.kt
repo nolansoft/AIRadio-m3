@@ -89,13 +89,40 @@ fun StationListScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // First-page load in flight and we have nothing to show yet —
-            // render skeletons so the screen doesn't flash empty.
+            // render skeletons so the screen doesn't flash empty, plus
+            // an explicit progress indicator + status text so the user
+            // sees feedback while waiting (and "Retrying N/M…" during
+            // auto-retries — see StationListViewModel.loadNextPage).
             if (state.isLoadingFirstPage && state.stations.isEmpty()) {
                 items(count = SKELETON_STATION_COUNT) { SkeletonStationCard() }
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        CircularProgressIndicator(
+                            strokeWidth = 3.dp,
+                            modifier = Modifier.size(32.dp),
+                        )
+                        Text(
+                            text = when {
+                                state.retryAttempt > 0 ->
+                                    "Retrying (${state.retryAttempt}/${state.maxRetries})…"
+                                else -> "Loading stations…"
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
             }
             // First-page load failed (and nothing was previously cached
             // in memory) — show a centered error with a Retry button that
-            // spans the full grid width.
+            // spans the full grid width. Reached only after MAX_AUTO_RETRIES
+            // attempts in StationListViewModel have all failed.
             else if (state.error != null && state.stations.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     ErrorPanel(
