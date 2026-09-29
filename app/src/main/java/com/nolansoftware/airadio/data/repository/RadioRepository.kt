@@ -17,6 +17,7 @@ import com.nolansoftware.airadio.data.repository.mapper.toCountryEntities
 import com.nolansoftware.airadio.data.repository.mapper.toDomain
 import com.nolansoftware.airadio.data.repository.mapper.toLanguageDomain
 import com.nolansoftware.airadio.data.repository.mapper.toLanguageEntities
+import com.nolansoftware.airadio.data.repository.mapper.toFavoriteStationDomain
 import com.nolansoftware.airadio.data.repository.mapper.toStationDomain
 import com.nolansoftware.airadio.data.repository.mapper.toDomainStations
 import com.nolansoftware.airadio.data.repository.mapper.toStationEntities
@@ -106,7 +107,7 @@ class RadioRepository @Inject constructor(
         stationDao.getRecentlyPlayedStations().map { it.toStationDomain() }
 
     fun getFavoriteStations(): Flow<List<Station>> =
-        stationDao.getFavoriteStations().map { it.toStationDomain() }
+        favoritesDao.getFavoriteEntities().map { it.toFavoriteStationDomain() }
 
     fun getAllCountries(): Flow<List<Country>> =
         countryDao.getAllCountries().map { it.toCountryDomain() }
@@ -233,11 +234,28 @@ class RadioRepository @Inject constructor(
         }
     }
 
-    suspend fun addToFavorites(stationId: String) {
+    suspend fun addToFavorites(station: Station) {
+        // Capture the full station snapshot in the favorites row. The next sync
+        // may delete the matching row from `stations` (runSync clears the
+        // table), but the favorites list still resolves from this snapshot —
+        // see AppDatabase.MIGRATION_2_3 + FavoritesDao.getFavoriteEntities for
+        // why the favorites table no longer JOINs against `stations`.
         favoritesDao.addToFavorites(
             FavoriteEntity(
-                stationuuid = stationId,
-                added_time = System.currentTimeMillis()
+                stationuuid = station.stationuuid,
+                added_time = System.currentTimeMillis(),
+                name = station.name,
+                url = station.url,
+                url_resolved = station.urlResolved,
+                favicon = station.favicon,
+                country = station.country,
+                countrycode = station.countryCode,
+                language = station.language,
+                tags = station.tags,
+                codec = station.codec,
+                bitrate = station.bitrate,
+                votes = station.votes,
+                lastchecktime = station.lastCheckTime
             )
         )
     }

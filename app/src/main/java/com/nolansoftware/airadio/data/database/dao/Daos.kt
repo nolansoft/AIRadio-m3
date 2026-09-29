@@ -38,13 +38,6 @@ interface StationDao {
     """)
     fun getRecentlyPlayedStations(): Flow<List<StationEntity>>
 
-    @Query("""
-        SELECT s.* FROM stations s
-        INNER JOIN favorites f ON s.stationuuid = f.stationuuid
-        ORDER BY f.added_time DESC
-    """)
-    fun getFavoriteStations(): Flow<List<StationEntity>>
-
     @Query("SELECT * FROM stations WHERE stationuuid = :stationId")
     suspend fun getStationById(stationId: String): StationEntity?
 
@@ -108,6 +101,20 @@ interface FavoritesDao {
 
     @Query("SELECT EXISTS(SELECT * FROM favorites WHERE stationuuid = :stationId)")
     fun isFavorite(stationId: String): Flow<Boolean>
+
+    /**
+     * Reads favorites directly — no JOIN against `stations`. The favorites
+     * table is now self-contained (FavoriteEntity stores the full station
+     * snapshot, see AppDatabase.MIGRATION_2_3), so the daily
+     * `StationDao.clearAllStations()` cycle in `runSync` cannot orphan a
+     * favorite: the snapshot lives in the favorites row regardless of
+     * whether the corresponding `stations` row survives the next sync.
+     *
+     * Returned as [FavoriteEntity] (not [StationEntity]) — callers map to
+     * domain via `Mappers.FavoriteEntity.toStationDomain()`.
+     */
+    @Query("SELECT * FROM favorites ORDER BY added_time DESC")
+    fun getFavoriteEntities(): Flow<List<FavoriteEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun addToFavorites(favorite: FavoriteEntity)

@@ -7,6 +7,7 @@ import com.nolansoftware.airadio.data.api.model.ApiLanguage
 import com.nolansoftware.airadio.data.api.model.ApiStation
 import com.nolansoftware.airadio.data.api.model.ApiTag
 import com.nolansoftware.airadio.data.database.entity.CountryEntity
+import com.nolansoftware.airadio.data.database.entity.FavoriteEntity
 import com.nolansoftware.airadio.data.database.entity.LanguageEntity
 import com.nolansoftware.airadio.data.database.entity.PagedStationCacheEntity
 import com.nolansoftware.airadio.data.database.entity.StationEntity
@@ -123,12 +124,35 @@ fun TagEntity.toDomain(): Tag = Tag(
     stationCount = stationcount
 )
 
+/**
+ * Maps a [FavoriteEntity] to a domain [Station] using the denormalized snapshot
+ * captured at toggle-favorite time. Used by [RadioRepository.getFavoriteStations]
+ * which reads `favorites` directly (no JOIN against `stations`), so this mapper
+ * needs the full Station shape from the favorites row alone.
+ */
+fun FavoriteEntity.toStationDomain(): Station = Station(
+    stationuuid = stationuuid,
+    name = name,
+    url = url,
+    urlResolved = url_resolved,
+    favicon = favicon,
+    country = country,
+    countryCode = countrycode,
+    language = language,
+    tags = tags,
+    codec = codec,
+    bitrate = bitrate,
+    votes = votes,
+    lastCheckTime = lastchecktime
+)
+
 fun List<ApiStation>.toStationEntities(): List<StationEntity> = map { it.toEntity() }
 fun List<ApiCountry>.toCountryEntities(): List<CountryEntity> = map { it.toEntity() }
 fun List<ApiLanguage>.toLanguageEntities(): List<LanguageEntity> = map { it.toEntity() }
 fun List<ApiTag>.toTagEntities(): List<TagEntity> = map { it.toEntity() }
 
 fun List<StationEntity>.toStationDomain(): List<Station> = map { it.toDomain() }
+fun List<FavoriteEntity>.toFavoriteStationDomain(): List<Station> = map { it.toStationDomain() }
 fun List<CountryEntity>.toCountryDomain(): List<Country> = map { it.toDomain() }
 fun List<LanguageEntity>.toLanguageDomain(): List<Language> = map { it.toDomain() }
 fun List<TagEntity>.toTagDomain(): List<Tag> = map { it.toDomain() }

@@ -24,7 +24,7 @@ class FavoritesViewModel @Inject constructor(
 
     fun toggleFavorite(station: Station) {
         viewModelScope.launch {
-            toggleFavoriteUseCase(station.stationuuid)
+            toggleFavoriteUseCase(station)
         }
     }
 

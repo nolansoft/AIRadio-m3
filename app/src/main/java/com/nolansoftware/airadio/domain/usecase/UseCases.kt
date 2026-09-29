@@ -97,12 +97,20 @@ class IsFavoriteUseCase @Inject constructor(
 class ToggleFavoriteUseCase @Inject constructor(
     private val repository: RadioRepository
 ) {
-    suspend operator fun invoke(stationId: String) {
-        val isFavorite = repository.isFavorite(stationId).first()
+    /**
+     * Takes the full [Station] (not just the stationuuid) because adding to
+     * favorites now persists a snapshot of the station's display fields — see
+     * [RadioRepository.addToFavorites]. The snapshot is what makes favorites
+     * survive the daily `StationDao.clearAllStations()` cycle; without it, a
+     * favorited station that drops out of the popular top-N becomes invisible
+     * in FavoritesScreen even though `isFavorite(stationId)` is still true.
+     */
+    suspend operator fun invoke(station: Station) {
+        val isFavorite = repository.isFavorite(station.stationuuid).first()
         if (isFavorite) {
-            repository.removeFromFavorites(stationId)
+            repository.removeFromFavorites(station.stationuuid)
         } else {
-            repository.addToFavorites(stationId)
+            repository.addToFavorites(station)
         }
     }
 }
