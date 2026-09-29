@@ -47,5 +47,17 @@ data class PagedStationCacheEntity(
         const val TYPE_COUNTRY = "country"
         const val TYPE_LANGUAGE = "language"
         const val TYPE_TAG = "tag"
+
+        /**
+         * How long a single cached page is considered fresh. On expiry, the
+         * next [com.nolansoftware.airadio.data.repository.RadioRepository.getStationsPage]
+         * call for that (type, query, pageOffset) tuple re-fetches from the
+         * API and overwrites the cache row in place.
+         *
+         * 7 days — long enough that repeat visits to a popular Browse row
+         * within the same week are instant, short enough that the
+         * catalogue stays reasonably current.
+         */
+        const val TTL_MILLIS = 7L * 24 * 60 * 60 * 1000
     }
 }

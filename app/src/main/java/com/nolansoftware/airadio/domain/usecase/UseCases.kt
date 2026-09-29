@@ -8,6 +8,7 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import androidx.paging.map
 import com.nolansoftware.airadio.data.database.dao.PagedStationCacheDao
+import com.nolansoftware.airadio.data.database.entity.PagedStationCacheEntity
 import com.nolansoftware.airadio.data.repository.RadioRepository
 import com.nolansoftware.airadio.data.repository.mapper.toStationDomain
 import com.nolansoftware.airadio.data.repository.paging.StationRemoteMediator
@@ -72,6 +73,49 @@ class GetStationsByTagUseCase @Inject constructor(
 ) {
     operator fun invoke(tag: String): Flow<List<Station>> =
         repository.getStationsByTag(tag)
+}
+
+/**
+ * Returns one page of stations for the Browse > Country / Language /
+ * Tag list, paginated [PAGE_SIZE] rows per page. Replaces the old
+ * Paging-3 / RemoteMediator flow for the browse list — the new design
+ * shows a small first batch quickly and lets the user drive further
+ * pages explicitly through a "Load next" button.
+ *
+ * Cache-first via [PagedStationCacheEntity]: on a hit within
+ * [PagedStationCacheEntity.TTL_MILLIS] (= 7 days), the page is read from
+ * Room's `paged_station_cache` table directly — no network. On a miss
+ * (or expired entry), the use case fetches the page from the API and
+ * writes it back into the cache so the next visit is instant.
+ *
+ * Callers drive this from a StateFlow-backed ViewModel that exposes
+ * "load next page" semantics — see [com.nolansoftware.airadio.ui.viewmodels.StationListViewModel].
+ */
+class GetStationsByFilterUseCase @Inject constructor(
+    private val repository: RadioRepository
+) {
+    suspend operator fun invoke(
+        type: String,
+        query: String,
+        offset: Int,
+        limit: Int,
+    ): List<Station> = repository.getStationsPage(
+        type = type,
+        query = query,
+        offset = offset,
+        limit = limit,
+        ttlMillis = PagedStationCacheEntity.TTL_MILLIS,
+    )
+
+    companion object {
+        /**
+         * Stations per page. Sized so the first API call returns ~50 KB of
+         * JSON — parses in <50 ms on a real device, total round-trip
+         * typically ~1 s on a China→Germany link. Larger values make the
+         * first "Load next" tap feel slow.
+         */
+        const val PAGE_SIZE = 50
+    }
 }
 
 class SearchStationsUseCase @Inject constructor(

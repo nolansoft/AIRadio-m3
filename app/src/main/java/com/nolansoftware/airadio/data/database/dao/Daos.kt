@@ -160,6 +160,20 @@ interface PagedStationCacheDao {
     suspend fun upsertPage(rows: List<PagedStationCacheEntity>)
 
     /**
+     * Read a single cached page ordered by sortPosition. Used by
+     * [com.nolansoftware.airadio.data.repository.RadioRepository.getStationsPage]
+     * to serve repeat visits from Room without hitting the network.
+     * Companion to [newestCachedAt] (TTL check) — the caller reads the
+     * freshness first, then this method only if the row is within TTL.
+     */
+    @Query("""
+        SELECT * FROM paged_station_cache
+        WHERE queryType = :queryType AND queryValue = :queryValue AND pageOffset = :pageOffset
+        ORDER BY sortPosition ASC
+    """)
+    suspend fun readCachedPage(queryType: String, queryValue: String, pageOffset: Int): List<PagedStationCacheEntity>
+
+    /**
      * Drop a single page. Called only from REFRESH-load, never APPEND.
      * APPEND loads preserve existing rows because they can never shrink the
      * page (a page either returns <pageSize rows and triggers endOfPaginationReached,

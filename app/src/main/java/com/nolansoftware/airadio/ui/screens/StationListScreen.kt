@@ -33,15 +33,11 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.paging.LoadState
-import androidx.paging.compose.collectAsLazyPagingItems
-import androidx.paging.compose.itemKey
 import androidx.navigation.NavController
 import com.nolansoftware.airadio.R
-import com.nolansoftware.airadio.ads.AdMobConfig
-import com.nolansoftware.airadio.ads.BannerAd
 import com.nolansoftware.airadio.domain.model.PlayerState
 import com.nolansoftware.airadio.domain.model.Station
 import com.nolansoftware.airadio.ui.components.SkeletonStationCard
@@ -61,7 +57,7 @@ fun StationListScreen(
     stationListViewModel: StationListViewModel = hiltViewModel(),
     playerViewModel: PlayerViewModel = hiltViewModel()
 ) {
-    val pagingItems = stationListViewModel.stations.collectAsLazyPagingItems()
+    val state by stationListViewModel.state.collectAsState()
     val playerState by playerViewModel.playerState.observeAsState(PlayerState.Idle)
 
     val title = when (type) {
@@ -83,9 +79,6 @@ fun StationListScreen(
             )
         }
     ) { innerPadding ->
-        val refresh = pagingItems.loadState.refresh
-        val append = pagingItems.loadState.append
-
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 160.dp),
             modifier = Modifier
@@ -97,121 +90,89 @@ fun StationListScreen(
         ) {
             // First-page load in flight and we have nothing to show yet —
             // render skeletons so the screen doesn't flash empty.
-            if (refresh is LoadState.Loading && pagingItems.itemCount == 0) {
+            if (state.isLoadingFirstPage && state.stations.isEmpty()) {
                 items(count = SKELETON_STATION_COUNT) { SkeletonStationCard() }
             }
             // First-page load failed (and nothing was previously cached
             // in memory) — show a centered error with a Retry button that
             // spans the full grid width.
-            else if (refresh is LoadState.Error && pagingItems.itemCount == 0) {
+            else if (state.error != null && state.stations.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     ErrorPanel(
-                        message = refresh.error.message
-                            ?: "Couldn't load stations. Check your connection.",
-                        onRetry = { pagingItems.retry() }
+                        message = state.error ?: "Couldn't load stations. Check your connection.",
+                        onRetry = { stationListViewModel.loadNextPage() }
                     )
                 }
             }
-            // Either loaded successfully or the user navigated away from
-            // a refresh error after items had already landed.
+            // Either loaded successfully or a refresh failed after items
+            // had already landed — render what we have.
             else {
                 items(
-                    count = pagingItems.itemCount + (pagingItems.itemCount / AdMobConfig.BANNER_INTERVAL),
-                    key = { combinedIndex ->
-                        val bannerAt = AdMobConfig.BANNER_INTERVAL
-                        val isBannerSlot = (combinedIndex + 1) % (bannerAt + 1) == 0
-                        if (isBannerSlot) "ad-banner-stationlist-$combinedIndex"
-                        else {
-                            val itemIndex = combinedIndex - (combinedIndex / (bannerAt + 1))
-                            val station = pagingItems.peek(itemIndex)
-                            station?.stationuuid ?: "loading-$combinedIndex"
-                        }
-                    },
-                    span = { combinedIndex ->
-                        val bannerAt = AdMobConfig.BANNER_INTERVAL
-                        if ((combinedIndex + 1) % (bannerAt + 1) == 0) GridItemSpan(maxLineSpan)
-                        else GridItemSpan(1)
-                    }
-                ) { combinedIndex ->
-                    val bannerAt = AdMobConfig.BANNER_INTERVAL
-                    if ((combinedIndex + 1) % (bannerAt + 1) == 0) {
-                        BannerAd(modifier = Modifier.padding(vertical = 8.dp))
-                    } else {
-                        val itemIndex = combinedIndex - (combinedIndex / (bannerAt + 1))
-                        val station = pagingItems.peek(itemIndex) ?: return@items
-                        StationCard(
-                            station = station,
-                            isFavorite = stationListViewModel.isFavorite(station.stationuuid)
-                                .collectAsState(initial = false).value,
-                            onStationClick = {
-                                handleStationClick(
-                                    station = station,
-                                    navController = navController,
-                                    playerViewModel = playerViewModel,
-                                    playerState = playerState
-                                )
-                            },
-                            onToggleFavorite = { stationListViewModel.toggleFavorite(it) }
-                        )
-                    }
+                    items = state.stations,
+                    key = { it.stationuuid },
+                ) { station ->
+                    StationCard(
+                        station = station,
+                        isFavorite = stationListViewModel.isFavorite(station.stationuuid)
+                            .collectAsState(initial = false).value,
+                        onStationClick = {
+                            handleStationClick(
+                                station = station,
+                                navController = navController,
+                                playerViewModel = playerViewModel,
+                                playerState = playerState
+                            )
+                        },
+                        onToggleFavorite = { stationListViewModel.toggleFavorite(it) }
+                    )
                 }
 
-                // Append footer: spinner while a follow-up page is in
-                // flight, or a tiny inline retry button if the next page
-                // failed (Retry triggers pagingItems.retry() which
-                // re-fetches the failed page). Both span the full grid
-                // width so they don't get squeezed into a single cell.
-                when (append) {
-                    is LoadState.Loading -> {
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(
-                                    strokeWidth = 3.dp,
-                                    modifier = Modifier.size(32.dp)
-                                )
+                // Pagination footer — spans the full row so it doesn't get
+                // squeezed into a single grid cell. Three states:
+                //  - loading the next page   → spinner
+                //  - last page load failed   → "Retry loading more" button
+                //  - more pages available    → "Load next 50 stations" button
+                //  - no more pages           → "End of list — N stations total"
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        when {
+                            state.isLoadingMore -> {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator(
+                                        strokeWidth = 3.dp,
+                                        modifier = Modifier.size(32.dp),
+                                    )
+                                    Text(
+                                        text = "Loading next page…",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 8.dp),
+                                    )
+                                }
                             }
-                        }
-                    }
-                    is LoadState.Error -> {
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                FilledTonalButton(onClick = { pagingItems.retry() }) {
+                            state.error != null -> {
+                                FilledTonalButton(onClick = { stationListViewModel.loadNextPage() }) {
                                     Text("Retry loading more")
                                 }
                             }
-                        }
-                    }
-                    else -> Unit
-                }
-
-                // Empty result after a successful load (e.g. a tag that
-                // exists in the catalogue but no station matches in
-                // /json/stations/search?tag=...).
-                if (pagingItems.itemCount == 0 &&
-                    refresh is LoadState.NotLoading
-                ) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "No stations found",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            !state.endOfReached -> {
+                                FilledTonalButton(onClick = { stationListViewModel.loadNextPage() }) {
+                                    Text("Load next 50 stations")
+                                }
+                            }
+                            else -> {
+                                Text(
+                                    text = "End of list — ${state.stations.size} stations total",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
                         }
                     }
                 }

@@ -11,6 +11,7 @@ import com.nolansoftware.airadio.data.database.dao.RecentlyPlayedDao
 import com.nolansoftware.airadio.data.database.dao.StationDao
 import com.nolansoftware.airadio.data.database.dao.TagDao
 import com.nolansoftware.airadio.data.database.entity.FavoriteEntity
+import com.nolansoftware.airadio.data.database.entity.PagedStationCacheEntity
 import com.nolansoftware.airadio.data.database.entity.RecentlyPlayedEntity
 import com.nolansoftware.airadio.data.repository.mapper.toCountryDomain
 import com.nolansoftware.airadio.data.repository.mapper.toCountryEntities
@@ -80,6 +81,89 @@ class RadioRepository @Inject constructor(
         stationDao.getStationsByTag(tag).map { it.toStationDomain() }
 
     /**
+     * Returns one page of stations for the Browse > Country / Language /
+     * Tag list, using [PagedStationCacheEntity] as a write-through cache.
+     *
+     * Cache-first: if a fresh (within [ttlMillis]) row exists at
+     * (type, query, offset), returns those rows from Room directly. On a
+     * miss (or expired entry) hits the network via [fetchStationsPage]
+     * (which fans out into parallel chunks for limit > 1000), writes the
+     * result into `paged_station_cache`, and returns the freshly-fetched
+     * rows.
+     *
+     * What this gets us:
+     * - First visit to "China": page 0 fetched from API in ~1 s, written
+     *   to cache.
+     * - User taps "Load next 50", "Load next 50", … — each page fetched
+     *   and cached.
+     * - User navigates away, comes back to China within 7 days → page 0
+     *   served from cache (single Room query), no network.
+     * - Pages the user has never scrolled into stay un-cached, so unused
+     *   categories don't bloat the cache.
+     *
+     * Exactly one of [type] ∈ ["country", "language", "tag"] is interpreted;
+     * passing anything else makes the network call send no filter (which
+     * the API treats as top-votes) — never exercised today.
+     */
+    suspend fun getStationsPage(
+        type: String,
+        query: String,
+        offset: Int,
+        limit: Int,
+        ttlMillis: Long = PagedStationCacheEntity.TTL_MILLIS,
+    ): List<Station> = withContext(Dispatchers.IO) {
+        // 1. Cache lookup — read freshness, then the page rows if fresh.
+        val cachedAt = pagedStationCacheDao.newestCachedAt(type, query, offset)
+        if (cachedAt != null && System.currentTimeMillis() - cachedAt < ttlMillis) {
+            val cached = pagedStationCacheDao.readCachedPage(type, query, offset)
+            if (cached.isNotEmpty()) {
+                return@withContext cached.map { it.toStationDomain() }
+            }
+        }
+
+        // 2. Network fetch (parallel-chunked for limit > CHUNK_SIZE).
+        val stations = fetchStationsPage(
+            country = type.takeIf { it == PagedStationCacheEntity.TYPE_COUNTRY }?.let { query },
+            language = type.takeIf { it == PagedStationCacheEntity.TYPE_LANGUAGE }?.let { query },
+            tag = type.takeIf { it == PagedStationCacheEntity.TYPE_TAG }?.let { query },
+            offset = offset,
+            limit = limit,
+        )
+
+        // 3. Write-through cache. The composite PK (queryType, queryValue,
+        //    pageOffset, sortPosition) makes REPLACE idempotent on
+        //    re-fetch.
+        if (stations.isNotEmpty()) {
+            val nowMs = System.currentTimeMillis()
+            val entities = stations.mapIndexed { i, station ->
+                PagedStationCacheEntity(
+                    queryType = type,
+                    queryValue = query,
+                    pageOffset = offset,
+                    sortPosition = i,
+                    cachedAt = nowMs,
+                    stationuuid = station.stationuuid,
+                    name = station.name,
+                    url = station.url,
+                    url_resolved = station.urlResolved,
+                    favicon = station.favicon,
+                    country = station.country,
+                    countrycode = station.countryCode,
+                    language = station.language,
+                    tags = station.tags,
+                    codec = station.codec,
+                    bitrate = station.bitrate,
+                    votes = station.votes,
+                    lastchecktime = station.lastCheckTime,
+                )
+            }
+            pagedStationCacheDao.upsertPage(entities)
+        }
+
+        stations
+    }
+
+    /**
      * Fetch a single page of stations filtered by one of country/language/tag.
      * Used by the Paging 3 source for the StationListScreen infinite scroll.
      *
@@ -94,13 +178,46 @@ class RadioRepository @Inject constructor(
         offset: Int,
         limit: Int
     ): List<Station> = withContext(Dispatchers.IO) {
-        radioBrowserApi.searchStations(
-            country = country,
-            language = language,
-            tag = tag,
-            offset = offset,
-            limit = limit
-        ).toDomainStations()
+        // For `limit` above the chunk threshold, fan out into parallel
+        // requests of CHUNK_SIZE rows each. OkHttp uses HTTP/2 multiplexing
+        // on the connection pool by default, so all chunks share one TCP
+        // connection and the wall-clock cost is roughly the slowest chunk,
+        // not the sum. For a 5000-row fetch from a far-away server this is
+        // the difference between ~5–30s sequential and ~1–3s parallel, with
+        // no change at the Paging layer.
+        //
+        // The Paging layer (RemoteMediator + paged_station_cache) is
+        // untouched — the parallel structure is purely an internal
+        // optimisation here, so the "max 100 stations" bug fixed by
+        // bumping PAGE_SIZE to 5000 stays fixed: endOfPaginationReached is
+        // still decided by stations.size vs the *caller's* limit, which
+        // here is PAGE_SIZE = 5000, not CHUNK_SIZE.
+        if (limit <= CHUNK_SIZE) {
+            radioBrowserApi.searchStations(
+                country = country,
+                language = language,
+                tag = tag,
+                offset = offset,
+                limit = limit,
+            ).toDomainStations()
+        } else {
+            val numChunks = (limit + CHUNK_SIZE - 1) / CHUNK_SIZE
+            coroutineScope {
+                (0 until numChunks).map { chunkIdx ->
+                    async {
+                        val chunkOffset = offset + chunkIdx * CHUNK_SIZE
+                        val chunkLimit = minOf(CHUNK_SIZE, limit - chunkIdx * CHUNK_SIZE)
+                        radioBrowserApi.searchStations(
+                            country = country,
+                            language = language,
+                            tag = tag,
+                            offset = chunkOffset,
+                            limit = chunkLimit,
+                        ).toDomainStations()
+                    }
+                }.awaitAll().flatten()
+            }
+        }
     }
 
     fun getRecentlyPlayedStations(): Flow<List<Station>> =
@@ -274,5 +391,18 @@ class RadioRepository @Inject constructor(
 
         val cutoffTime = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(30)
         recentlyPlayedDao.cleanupOldRecentlyPlayed(cutoffTime)
+    }
+
+    companion object {
+        /**
+         * Parallel-fetch chunk size used by [fetchStationsPage]. Sized at 1000
+         * because OkHttp's default `maxRequestsPerHost = 5` matches the
+         * `PAGE_SIZE = 5000` fan-out (5 chunks × 1000 = 5000) cleanly —
+         * exactly one request per HTTP/2 stream slot, no queueing.
+         *
+         * Each 1000-row response is roughly 1 MB, well within the 60s read
+         * timeout configured in [com.nolansoftware.airadio.di.AppModule].
+         */
+        private const val CHUNK_SIZE = 1000
     }
 }
