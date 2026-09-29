@@ -32,6 +32,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.autoSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -261,10 +263,33 @@ private fun AnimatedStationCardItem(
     playerState: PlayerState,
     homeViewModel: HomeViewModel,
 ) {
-    var visible by remember { mutableStateOf(false) }
+    // rememberSaveable (not plain remember) for `visible` — the entrance animation
+    // depends on each card starting collapsed and expanding after `index * 30L` ms.
+    // With plain `remember`, Player → back navigation rebuilds the composition and
+    // resets every card to `visible = false`, which collapses every StationCard via
+    // AnimatedVisibility. The outer LazyVerticalGrid then measures a near-zero-height
+    // grid; its saved `firstVisibleItemIndex` cannot anchor against the collapsed
+    // items, and once the cards re-expand on staggered delays, the saved scroll
+    // position is already lost. rememberSaveable keyed by station.stationuuid
+    // persists `visible = true` for any card that finished its entrance animation
+    // before navigation, so on return those cards stay visible (full height) from
+    // the very first frame — the grid measures correctly and the saved index
+    // anchors to the right item.
+    //
+    // The LaunchedEffect's delay is still applied on first composition of a card,
+    // but for cards that were visible before navigation, `visible` is restored
+    // to true before the LaunchedEffect fires, so the delay's `visible = true`
+    // assignment is a no-op (Compose sees no state transition → no re-animation).
+    val visibleState = rememberSaveable(
+        station.stationuuid,
+        stateSaver = autoSaver(),
+    ) { mutableStateOf(false) }
+    var visible by visibleState
     LaunchedEffect(station.stationuuid) {
-        delay(index * 30L)
-        visible = true
+        if (!visible) {
+            delay(index * 30L)
+            visible = true
+        }
     }
     AnimatedVisibility(
         visible = visible,
