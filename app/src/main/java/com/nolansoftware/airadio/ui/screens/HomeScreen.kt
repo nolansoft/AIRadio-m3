@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -20,10 +22,16 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,6 +44,8 @@ import androidx.compose.runtime.saveable.autoSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,6 +53,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.nolansoftware.airadio.R
 import com.nolansoftware.airadio.ads.bannerAdItem
+import com.nolansoftware.airadio.consent.ConsentManager
 import com.nolansoftware.airadio.domain.model.PlayerState
 import com.nolansoftware.airadio.domain.model.Station
 import com.nolansoftware.airadio.domain.model.SyncState
@@ -61,7 +72,8 @@ private const val SKELETON_COUNT = 6
 fun HomeScreen(
     navController: NavController,
     homeViewModel: HomeViewModel = hiltViewModel(),
-    playerViewModel: PlayerViewModel = hiltViewModel()
+    playerViewModel: PlayerViewModel = hiltViewModel(),
+    consentManager: ConsentManager
 ) {
     // The three Room-backed lists are read with `collectAsState()` against
     // `StateFlow<List<Station>?>` properties on HomeViewModel (see the comment
@@ -79,13 +91,57 @@ fun HomeScreen(
     val playerState by playerViewModel.playerState.observeAsState(PlayerState.Idle)
     val syncState by homeViewModel.syncState.collectAsState()
 
+    // Privacy / consent controls (Google User Messaging Platform). The gear icon
+    // used to live on SearchScreen, but Search is a per-task input surface —
+    // consent is a global, low-frequency setting. Home is the most-visited
+    // destination and Material 3 puts single app-level actions in the TopAppBar
+    // `actions = { }` slot, so this is the conventional spot.
+    var showPrivacySheet by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.app_name)) }
+                title = { Text(stringResource(R.string.app_name)) },
+                actions = {
+                    IconButton(onClick = { showPrivacySheet = true }) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = stringResource(R.string.privacy_settings_title),
+                        )
+                    }
+                }
             )
         }
     ) { innerPadding ->
+        val context = LocalContext.current
+        val uriHandler = LocalUriHandler.current
+        if (showPrivacySheet) {
+            ModalBottomSheet(onDismissRequest = { showPrivacySheet = false }) {
+                Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
+                    Text(
+                        text = stringResource(R.string.privacy_settings_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(bottom = 12.dp),
+                    )
+                    TextButton(onClick = {
+                        consentManager.showPrivacyOptions(context as android.app.Activity) {
+                            showPrivacySheet = false
+                        }
+                    }) {
+                        Text(stringResource(R.string.manage_privacy_options))
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = {
+                        // BLOCKER-A per plan §4 risk #5: replaced by user before M6.
+                        uriHandler.openUri("https://example.com/airadio-privacy")
+                        showPrivacySheet = false
+                    }) {
+                        Text(stringResource(R.string.privacy_policy))
+                    }
+                    Spacer(Modifier.height(16.dp))
+                }
+            }
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()

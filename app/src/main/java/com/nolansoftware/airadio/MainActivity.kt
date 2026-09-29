@@ -132,14 +132,14 @@ fun MainApp(consentManager: ConsentManager) {
             composable(Screen.Home.route) {
                 HomeScreen(
                     navController = navController,
-                    playerViewModel = playerViewModel
+                    playerViewModel = playerViewModel,
+                    consentManager = consentManager,
                 )
             }
             composable(Screen.Search.route) {
                 SearchScreen(
                     navController = navController,
                     playerViewModel = playerViewModel,
-                    consentManager = consentManager
                 )
             }
             composable(Screen.Browse.route) {
