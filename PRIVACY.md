@@ -15,7 +15,6 @@
 - No analytics SDK (no Firebase Analytics, no Crashlytics, no Sentry).
 - No crash reporter.
 - No usage telemetry.
-- No advertising identifiers are read or written.
 - No third-party tracking.
 
 ## Network usage
@@ -37,10 +36,29 @@
 - `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_MEDIA_PLAYBACK` — to keep the radio playing when the screen is off.
 - `WAKE_LOCK` — to prevent the device from dozing mid-stream.
 - `POST_NOTIFICATIONS` — for the media-style playback notification.
-- `RECEIVE_BOOT_COMPLETED` — to restart the playback service after a reboot.
 
 AIRadio does **not** request location, contacts, microphone, camera, or storage permissions.
 
 ## Contact
 
 For privacy questions: yfli@163.com
+
+## Third-party advertising
+
+AIRadio displays ads served by **Google AdMob**. AdMob is our only
+third-party data processor.
+
+**Data AdMob collects when you see an ad:**
+- Advertising ID (resets when you reset it in system settings).
+- IP address (used for fraud prevention and approximate geo).
+- App activity (ad taps, video views).
+- App information (version, locale, install source).
+- Crash logs (sent by Google Play Services, not by AIRadio).
+
+**What AIRadio does with this data:** AIRadio never sees or stores the
+above data; AdMob sends it directly to Google from your device.
+
+**How to opt out of personalized ads:** Open the in-app search screen →
+tap the settings icon → **Manage privacy options**.
+
+Effective date of this section: 2026-09-28.

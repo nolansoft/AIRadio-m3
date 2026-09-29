@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.nolansoftware.airadio.R
+import com.nolansoftware.airadio.ads.bannerAdItem
 import com.nolansoftware.airadio.domain.model.SyncState
 import com.nolansoftware.airadio.ui.components.BrowseItemCard
 import com.nolansoftware.airadio.ui.components.SkeletonBrowseRow
@@ -100,6 +101,7 @@ fun BrowseScreen(
                 BrowseViewModel.BrowseTab.Countries -> BrowseContent(
                     items = countries.map { it.name to it.stationCount },
                     isLoading = countries.isEmpty() && syncState is SyncState.Syncing,
+                    tabIndex = 0,
                     onItemClick = { country ->
                         navController.navigate(
                             Screen.StationList.createRoute("country", country)
@@ -109,6 +111,7 @@ fun BrowseScreen(
                 BrowseViewModel.BrowseTab.Languages -> BrowseContent(
                     items = languages.map { it.name to it.stationCount },
                     isLoading = languages.isEmpty() && syncState is SyncState.Syncing,
+                    tabIndex = 1,
                     onItemClick = { language ->
                         navController.navigate(
                             Screen.StationList.createRoute("language", language)
@@ -118,6 +121,7 @@ fun BrowseScreen(
                 BrowseViewModel.BrowseTab.Tags -> BrowseContent(
                     items = tags.map { it.name to it.stationCount },
                     isLoading = tags.isEmpty() && syncState is SyncState.Syncing,
+                    tabIndex = 2,
                     onItemClick = { tag ->
                         navController.navigate(
                             Screen.StationList.createRoute("tag", tag)
@@ -135,6 +139,7 @@ private const val SKELETON_BROWSE_COUNT = 10
 private fun BrowseContent(
     items: List<Pair<String, Int>>,
     isLoading: Boolean,
+    tabIndex: Int,
     onItemClick: (String) -> Unit
 ) {
     if (isLoading) {
@@ -156,6 +161,7 @@ private fun BrowseContent(
                     onClick = { onItemClick(name) }
                 )
             }
+            bannerAdItem(key = "ad-banner-browse-$tabIndex")
         }
     }
 }

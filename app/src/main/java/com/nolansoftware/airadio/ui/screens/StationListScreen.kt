@@ -40,6 +40,8 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import androidx.navigation.NavController
 import com.nolansoftware.airadio.R
+import com.nolansoftware.airadio.ads.AdMobConfig
+import com.nolansoftware.airadio.ads.BannerAd
 import com.nolansoftware.airadio.domain.model.PlayerState
 import com.nolansoftware.airadio.domain.model.Station
 import com.nolansoftware.airadio.ui.components.SkeletonStationCard
@@ -114,24 +116,44 @@ fun StationListScreen(
             // a refresh error after items had already landed.
             else {
                 items(
-                    count = pagingItems.itemCount,
-                    key = pagingItems.itemKey { it.stationuuid }
-                ) { index ->
-                    val station = pagingItems[index] ?: return@items
-                    StationCard(
-                        station = station,
-                        isFavorite = stationListViewModel.isFavorite(station.stationuuid)
-                            .collectAsState(initial = false).value,
-                        onStationClick = {
-                            handleStationClick(
-                                station = station,
-                                navController = navController,
-                                playerViewModel = playerViewModel,
-                                playerState = playerState
-                            )
-                        },
-                        onToggleFavorite = { stationListViewModel.toggleFavorite(it) }
-                    )
+                    count = pagingItems.itemCount + (pagingItems.itemCount / AdMobConfig.BANNER_INTERVAL),
+                    key = { combinedIndex ->
+                        val bannerAt = AdMobConfig.BANNER_INTERVAL
+                        val isBannerSlot = (combinedIndex + 1) % (bannerAt + 1) == 0
+                        if (isBannerSlot) "ad-banner-stationlist-$combinedIndex"
+                        else {
+                            val itemIndex = combinedIndex - (combinedIndex / (bannerAt + 1))
+                            val station = pagingItems.peek(itemIndex)
+                            station?.stationuuid ?: "loading-$combinedIndex"
+                        }
+                    },
+                    span = { combinedIndex ->
+                        val bannerAt = AdMobConfig.BANNER_INTERVAL
+                        if ((combinedIndex + 1) % (bannerAt + 1) == 0) GridItemSpan(maxLineSpan)
+                        else GridItemSpan(1)
+                    }
+                ) { combinedIndex ->
+                    val bannerAt = AdMobConfig.BANNER_INTERVAL
+                    if ((combinedIndex + 1) % (bannerAt + 1) == 0) {
+                        BannerAd(modifier = Modifier.padding(vertical = 8.dp))
+                    } else {
+                        val itemIndex = combinedIndex - (combinedIndex / (bannerAt + 1))
+                        val station = pagingItems.peek(itemIndex) ?: return@items
+                        StationCard(
+                            station = station,
+                            isFavorite = stationListViewModel.isFavorite(station.stationuuid)
+                                .collectAsState(initial = false).value,
+                            onStationClick = {
+                                handleStationClick(
+                                    station = station,
+                                    navController = navController,
+                                    playerViewModel = playerViewModel,
+                                    playerState = playerState
+                                )
+                            },
+                            onToggleFavorite = { stationListViewModel.toggleFavorite(it) }
+                        )
+                    }
                 }
 
                 // Append footer: spinner while a follow-up page is in

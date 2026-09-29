@@ -40,3 +40,20 @@
 # Hilt
 -keep class dagger.hilt.** { *; }
 -dontwarn dagger.hilt.**
+
+# UMP lacks consumer rules — must keep reflection-loaded classes.
+-keep class com.google.android.ump.** { *; }
+
+# GMS Tasks (used by AdMob async paths).
+-keep class com.google.android.gms.tasks.** { *; }
+
+# Parcelable CREATOR preservation.
+-keepclassmembers class * implements android.os.Parcelable {
+    public static final ** CREATOR;
+}
+
+# Attributes commonly needed by reflection / annotations.
+-keepattributes Signature, *Annotation*, EnclosingMethod, InnerClasses
+
+# Media3 HLS — preemptive warning suppression.
+-dontwarn androidx.media3.exoplayer.hls.**

@@ -9,6 +9,7 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
+import com.nolansoftware.airadio.consent.ConsentManager
 import com.nolansoftware.airadio.worker.CacheCleanupWorker
 import com.nolansoftware.airadio.worker.SyncWorker
 import dagger.hilt.android.HiltAndroidApp
@@ -20,8 +21,11 @@ class AIRadioApp : Application(), Configuration.Provider, ImageLoaderFactory {
     @Inject
     lateinit var workerFactory: HiltWorkerFactory
 
+    @Inject
+    lateinit var consentManager: ConsentManager
+
     override fun onCreate() {
-        super.onCreate()
+        super<Application>.onCreate()
         // Sync is a global concern — schedule it on every cold start, regardless of
         // which screen the user opens first. HomeViewModel no longer calls this.
         SyncWorker.schedule(this)
@@ -29,6 +33,7 @@ class AIRadioApp : Application(), Configuration.Provider, ImageLoaderFactory {
         // paging layer writes rows on every scroll, so without periodic
         // cleanup the table grows monotonically across browsing history.
         CacheCleanupWorker.schedule(this)
+        consentManager.initialize(this)
     }
 
     override fun getWorkManagerConfiguration(): Configuration =

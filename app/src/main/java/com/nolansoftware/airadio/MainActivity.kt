@@ -18,8 +18,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -30,6 +32,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.nolansoftware.airadio.consent.ConsentManager
 import com.nolansoftware.airadio.ui.navigation.Screen
 import com.nolansoftware.airadio.ui.navigation.bottomNavItems
 import com.nolansoftware.airadio.ui.screens.BrowseScreen
@@ -41,9 +44,12 @@ import com.nolansoftware.airadio.ui.screens.StationListScreen
 import com.nolansoftware.airadio.ui.theme.AIRadioTheme
 import com.nolansoftware.airadio.ui.viewmodels.PlayerViewModel
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject lateinit var consentManager: ConsentManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -54,7 +60,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    MainApp()
+                    MainApp(consentManager = consentManager)
                 }
             }
         }
@@ -63,14 +69,19 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainApp() {
+fun MainApp(consentManager: ConsentManager) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     val playerViewModel: PlayerViewModel = hiltViewModel()
+    val activity = LocalContext.current as ComponentActivity
 
     val showBottomBar = bottomNavItems.any { screen ->
         currentDestination?.hierarchy?.any { it.route == screen.route } == true
+    }
+
+    LaunchedEffect(Unit) {
+        consentManager.requestConsentFormIfNeeded(activity) { /* ready */ }
     }
 
     Scaffold(
@@ -127,7 +138,8 @@ fun MainApp() {
             composable(Screen.Search.route) {
                 SearchScreen(
                     navController = navController,
-                    playerViewModel = playerViewModel
+                    playerViewModel = playerViewModel,
+                    consentManager = consentManager
                 )
             }
             composable(Screen.Browse.route) {

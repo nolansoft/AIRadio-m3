@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.nolansoftware.airadio.R
+import com.nolansoftware.airadio.ads.bannerAdItem
 import com.nolansoftware.airadio.domain.model.PlayerState
 import com.nolansoftware.airadio.domain.model.Station
 import com.nolansoftware.airadio.ui.components.StationCard
@@ -105,6 +106,9 @@ fun FavoritesScreen(
                             },
                             onToggleFavorite = { favoritesViewModel.toggleFavorite(it) }
                         )
+                    }
+                    if (favoriteStations.isNotEmpty()) {
+                        bannerAdItem(key = "ad-banner-favorites")
                     }
                 }
             }

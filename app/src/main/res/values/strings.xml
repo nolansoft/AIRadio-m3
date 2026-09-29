@@ -28,4 +28,8 @@
     <string name="sync_status_retrying">Sync failed — retrying…</string>
     <string name="sync_status_failed_retry">Sync failed</string>
     <string name="sync_status_tap_to_retry">Tap to retry</string>
+    <string name="clear_search">Clear search</string>
+    <string name="privacy_settings_title">Privacy &amp; settings</string>
+    <string name="manage_privacy_options">Manage privacy options</string>
+    <string name="privacy_policy">Privacy policy</string>
 </resources>
