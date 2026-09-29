@@ -17,7 +17,9 @@ import com.nolansoftware.airadio.domain.usecase.SyncNowUseCase
 import com.nolansoftware.airadio.domain.usecase.ToggleFavoriteUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Locale
 import javax.inject.Inject
@@ -34,12 +36,31 @@ class HomeViewModel @Inject constructor(
     private val syncNowUseCase: SyncNowUseCase
 ) : AndroidViewModel(application) {
 
-    val popularStations: Flow<List<Station>> = getPopularStationsUseCase()
-    val recentlyPlayedStations: Flow<List<Station>> = getRecentlyPlayedStationsUseCase()
+    // StateFlow (not cold Flow) so that when HomeScreen is re-composed after
+    // returning from Player, `collectAsState()` reads the previously-emitted
+    // value synchronously — there is no "initialValue = null" window during
+    // which the grid would have to fall back to skeleton items. With a Flow,
+    // the producer restarts with null on every composition recreation, and the
+    // grid's MeasurePolicy clamps the saved `firstVisibleItemIndex` against
+    // the smaller skeleton item count, mutating the state and losing the
+    // user's scroll position. StateFlow's retained value keeps the grid's
+    // item count stable across the composition recreation, so the saved index
+    // anchors correctly against the same real items that were there before
+    // navigation.
+    //
+    // SharingStarted.Eagerly is fine here: HomeViewModel is scoped to the
+    // HomeScreen NavBackStackEntry, so the upstream Flow is only collected
+    // while the Home tab is in the back stack. Room's invalidation tracker
+    // handles query freshness — eager collection just keeps the cache warm.
+    val popularStations: StateFlow<List<Station>?> = getPopularStationsUseCase()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    val localStations: Flow<List<Station>> = getStationsByCountryUseCase(
+    val recentlyPlayedStations: StateFlow<List<Station>?> = getRecentlyPlayedStationsUseCase()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    val localStations: StateFlow<List<Station>?> = getStationsByCountryUseCase(
         Locale.getDefault().displayCountry
-    )
+    ).stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /**
      * Public seam for the banner retry CTA. Idempotent if a sync is already

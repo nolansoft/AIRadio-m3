@@ -43,9 +43,17 @@ fun BrowseScreen(
     browseViewModel: BrowseViewModel = hiltViewModel()
 ) {
     val selectedTab by browseViewModel.selectedTab.collectAsState()
-    val countries by browseViewModel.countries.collectAsState(initial = emptyList())
-    val languages by browseViewModel.languages.collectAsState(initial = emptyList())
-    val tags by browseViewModel.tags.collectAsState(initial = emptyList())
+    // collectAsState() with no initial — BrowseViewModel exposes
+    // StateFlow<List<Country>?> so the previously-emitted value is read
+    // synchronously on recomposition. See HomeViewModel for why this matters
+    // for scroll-position preservation across StationList → back navigation:
+    // without StateFlow, the initial `emptyList()` window forces
+    // `isLoading = true`, the column renders skeleton items, and the saved
+    // `firstVisibleItemIndex` gets clamped against the smaller skeleton item
+    // count.
+    val countries by browseViewModel.countries.collectAsState()
+    val languages by browseViewModel.languages.collectAsState()
+    val tags by browseViewModel.tags.collectAsState()
     val syncState by browseViewModel.syncState.collectAsState()
 
     val tabs = listOf(
@@ -99,8 +107,8 @@ fun BrowseScreen(
 
             when (selectedTab) {
                 BrowseViewModel.BrowseTab.Countries -> BrowseContent(
-                    items = countries.map { it.name to it.stationCount },
-                    isLoading = countries.isEmpty() && syncState is SyncState.Syncing,
+                    items = countries.orEmpty().map { it.name to it.stationCount },
+                    isLoading = countries.isNullOrEmpty() && syncState is SyncState.Syncing,
                     tabIndex = 0,
                     onItemClick = { country ->
                         navController.navigate(
@@ -109,8 +117,8 @@ fun BrowseScreen(
                     }
                 )
                 BrowseViewModel.BrowseTab.Languages -> BrowseContent(
-                    items = languages.map { it.name to it.stationCount },
-                    isLoading = languages.isEmpty() && syncState is SyncState.Syncing,
+                    items = languages.orEmpty().map { it.name to it.stationCount },
+                    isLoading = languages.isNullOrEmpty() && syncState is SyncState.Syncing,
                     tabIndex = 1,
                     onItemClick = { language ->
                         navController.navigate(
@@ -119,8 +127,8 @@ fun BrowseScreen(
                     }
                 )
                 BrowseViewModel.BrowseTab.Tags -> BrowseContent(
-                    items = tags.map { it.name to it.stationCount },
-                    isLoading = tags.isEmpty() && syncState is SyncState.Syncing,
+                    items = tags.orEmpty().map { it.name to it.stationCount },
+                    isLoading = tags.isNullOrEmpty() && syncState is SyncState.Syncing,
                     tabIndex = 2,
                     onItemClick = { tag ->
                         navController.navigate(

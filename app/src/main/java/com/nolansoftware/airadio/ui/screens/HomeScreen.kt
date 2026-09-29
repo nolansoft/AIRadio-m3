@@ -31,7 +31,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -62,30 +61,19 @@ fun HomeScreen(
     homeViewModel: HomeViewModel = hiltViewModel(),
     playerViewModel: PlayerViewModel = hiltViewModel()
 ) {
-    // The three Room-backed lists are read with `produceState(initialValue = null)`
-    // rather than `collectAsState(initial = emptyList())`. With the latter,
-    // HomeScreen recomposing after returning from the Player screen would start
-    // for one frame with each list as `emptyList()` — and the data LazyColumn's
-    // `rememberLazyListState()` restored from `rememberSaveable` would be
-    // silently clamped to index 0 by the column's MeasurePolicy (no items yet
-    // => nothing to anchor the saved index). By the time the Room Flow re-emits
-    // the cached data, the LazyListState's firstVisibleItemIndex is already 0,
-    // and the saved scroll position is lost.
-    //
-    // `null` here is "Flow hasn't emitted yet"; an empty list is "Flow emitted
-    // and there's no data". The skeleton grid is rendered while the Flow is
-    // still null OR while the flow has emitted an empty list and a sync is
-    // still in flight, so the saved LazyListState is never asked to anchor
-    // against an empty list.
-    val popularStations by produceState<List<Station>?>(initialValue = null) {
-        homeViewModel.popularStations.collect { value = it }
-    }
-    val recentlyPlayed by produceState<List<Station>?>(initialValue = null) {
-        homeViewModel.recentlyPlayedStations.collect { value = it }
-    }
-    val localStations by produceState<List<Station>?>(initialValue = null) {
-        homeViewModel.localStations.collect { value = it }
-    }
+    // The three Room-backed lists are read with `collectAsState()` against
+    // `StateFlow<List<Station>?>` properties on HomeViewModel (see the comment
+    // in HomeViewModel for why StateFlow rather than cold Flow). The crucial
+    // property: when HomeScreen is re-composed after returning from Player,
+    // StateFlow.value is read synchronously — no producer-restart window with
+    // initialValue=null. Without that, the grid's MeasurePolicy would clamp the
+    // saved `firstVisibleItemIndex` against the smaller skeleton item count
+    // (6) and mutate the state to a clamped value, losing the user's scroll
+    // position. StateFlow's retained value keeps the grid's item count stable
+    // across the composition recreation so the saved index anchors correctly.
+    val popularStations by homeViewModel.popularStations.collectAsState()
+    val recentlyPlayed by homeViewModel.recentlyPlayedStations.collectAsState()
+    val localStations by homeViewModel.localStations.collectAsState()
     val playerState by playerViewModel.playerState.observeAsState(PlayerState.Idle)
     val syncState by homeViewModel.syncState.collectAsState()
 

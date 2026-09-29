@@ -14,9 +14,10 @@ import com.nolansoftware.airadio.domain.usecase.GetPopularTagsUseCase
 import com.nolansoftware.airadio.domain.usecase.GetSyncStateUseCase
 import com.nolansoftware.airadio.domain.usecase.SyncNowUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -38,9 +39,23 @@ class BrowseViewModel @Inject constructor(
     private val _selectedTab = MutableStateFlow<BrowseTab>(BrowseTab.Countries)
     val selectedTab: StateFlow<BrowseTab> = _selectedTab
 
-    val countries: Flow<List<Country>> = getAllCountriesUseCase()
-    val languages: Flow<List<Language>> = getAllLanguagesUseCase()
-    val tags: Flow<List<Tag>> = getPopularTagsUseCase()
+    // StateFlow (not cold Flow) so that when BrowseScreen recomposes after
+    // returning from StationList, `collectAsState()` reads the previously
+    // emitted value synchronously — no `initial = emptyList()` window during
+    // which `isLoading` would resolve to true and the column would render
+    // skeleton items. The skeleton column's smaller item count (10 vs the
+    // 100+ real rows) causes the column's MeasurePolicy to clamp the saved
+    // `firstVisibleItemIndex` and mutate the LazyListState, losing the user's
+    // scroll position. See HomeViewModel for the full rationale; the same
+    // pattern applies to all three lists here.
+    val countries: StateFlow<List<Country>?> = getAllCountriesUseCase()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    val languages: StateFlow<List<Language>?> = getAllLanguagesUseCase()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    val tags: StateFlow<List<Tag>?> = getPopularTagsUseCase()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val syncState: StateFlow<SyncState> = getSyncStateUseCase()
 
