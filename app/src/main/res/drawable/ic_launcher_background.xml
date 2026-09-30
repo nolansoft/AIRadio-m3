@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AI Radio launcher background.
+  Radial gradient: electric cyan at the center fading through violet to deep indigo
+  at the edges. Used by both ic_launcher.xml and ic_launcher_round.xml.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:type="radial"
+        android:centerX="0.5"
+        android:centerY="0.5"
+        android:gradientRadius="54"
+        android:startColor="#00E5FF"
+        android:centerColor="#5B2BCF"
+        android:endColor="#1A0B3D" />
+</shape>

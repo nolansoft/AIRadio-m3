@@ -1,13 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path
-        android:fillColor="#FF2196F3"
-        android:pathData="M54,28 L30,44 L30,64 L54,80 L78,64 L78,44 Z" />
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M48,52 L60,52 L60,56 L48,56 Z" />
-</vector>
+<!--
+  AI Radio launcher icon (square / default).
+  Adaptive icon: foreground + background layered so the launcher can apply
+  its mask (circle, squircle, teardrop, etc.) without cropping content.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>

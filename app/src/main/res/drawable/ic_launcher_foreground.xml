@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AI Radio launcher foreground.
+  Three concentric broadcast arcs radiating toward the upper-right, with a
+  glowing AI node at the center. Designed to stay inside the 66dp safe zone
+  (centered at 54,54 within a 108dp viewport).
+
+  Geometry: arcs span a 60° wedge from -60° (upper-right) to 0° (right).
+    r=30: x=[54±30], y=[54±30] -> 24..84 — within [21,87] safe area (stroke 3dp OK)
+    r=22: x=[54±22], y=[54±22] -> 32..76
+    r=14: x=[54±14], y=[54±14] -> 40..68
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer arc: signal far away, lowest opacity -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.45"
+        android:strokeWidth="3"
+        android:pathData="M 69,28.02 A 30,30 0 0 1 84,54" />
+
+    <!-- Middle arc: medium opacity -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.7"
+        android:strokeWidth="3.5"
+        android:pathData="M 65,34.95 A 22,22 0 0 1 76,54" />
+
+    <!-- Inner arc: highest opacity, signal close -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="1.0"
+        android:strokeWidth="4"
+        android:pathData="M 61,41.88 A 14,14 0 0 1 68,54" />
+
+    <!-- AI node: soft cyan glow halo -->
+    <path
+        android:fillColor="#00E5FF"
+        android:fillAlpha="0.25"
+        android:pathData="M 54,54 m -10,0 a 10,10 0 1,0 20,0 a 10,10 0 1,0 -20,0" />
+
+    <!-- AI node: cyan body -->
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M 54,54 m -6,0 a 6,6 0 1,0 12,0 a 6,6 0 1,0 -12,0" />
+
+    <!-- AI node: white hot core -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 54,54 m -3,0 a 3,3 0 1,0 6,0 a 3,3 0 1,0 -6,0" />
+</vector>
