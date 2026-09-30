@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.nolansoftware.airadio.R
+import com.nolansoftware.airadio.ads.bannerAdItem
 import com.nolansoftware.airadio.domain.model.PlayerState
 import com.nolansoftware.airadio.domain.model.Station
 import com.nolansoftware.airadio.ui.components.SkeletonStationCard
@@ -152,6 +153,21 @@ fun StationListScreen(
                         },
                         onToggleFavorite = { stationListViewModel.toggleFavorite(it) }
                     )
+                }
+
+                // Bug fix (browse-countries-china no-ads): insert one banner
+                // ad at the end of every loaded list. AdMobConfig.BANNER_INTERVAL
+                // = 12 was defined for this screen ("StationListScreen paging
+                // grid") but never referenced — Browse / Favorites / Search
+                // each had their own ad insertion, StationListScreen had
+                // none. The CN network exposes only a small subset of
+                // stations per country (Cuba ~4, China ~4) so an interval
+                // alone wouldn't surface ads on the screens the user
+                // actually browses — we add a guaranteed end-of-list ad
+                // matching FavoritesScreen's pattern. Stable key prevents
+                // Pager reconciliation churn across paginations.
+                if (state.stations.isNotEmpty()) {
+                    bannerAdItem(key = "ad-banner-station-list")
                 }
 
                 // Pagination footer — spans the full row so it doesn't get
