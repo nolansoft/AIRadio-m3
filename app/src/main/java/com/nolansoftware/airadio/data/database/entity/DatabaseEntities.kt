@@ -75,5 +75,33 @@ data class FavoriteEntity(
 @Entity(tableName = "recently_played")
 data class RecentlyPlayedEntity(
     @PrimaryKey val stationuuid: String,
-    val played_time: Long
+    val played_time: Long,
+    // Denormalized station snapshot — captured at play time so the
+    // RecentlyPlayed carousel survives `StationDao.clearAllStations()`
+    // (which runSync runs on every daily sync to refill the popular
+    // top-N). Without these fields, a station that drops out of the
+    // popular top-N between syncs becomes an orphan row in
+    // `recently_played` — the row still exists but
+    // `getRecentlyPlayedStations()` (the old INNER JOIN against
+    // `stations`) silently drops it, so some stations appear in the
+    // carousel after being played and others don't.
+    //
+    // Mirrors the favorites fix (see FavoriteEntity above +
+    // AppDatabase.MIGRATION_2_3): storing the full snapshot makes
+    // `recently_played` self-contained. Each play captures the snapshot
+    // at play time; MIGRATION_3_4 backfills these columns from
+    // `stations` / `paged_station_cache` for existing rows and drops
+    // any that have no live copy anywhere.
+    val name: String,
+    val url: String,
+    val url_resolved: String,
+    val favicon: String,
+    val country: String,
+    val countrycode: String,
+    val language: String,
+    val tags: String,
+    val codec: String,
+    val bitrate: Int,
+    val votes: Int,
+    val lastchecktime: Long
 )

@@ -31,13 +31,6 @@ interface StationDao {
     @Query("SELECT * FROM stations WHERE tags LIKE '%' || :tag || '%' ORDER BY votes DESC LIMIT 100")
     fun getStationsByTag(tag: String): Flow<List<StationEntity>>
 
-    @Query("""
-        SELECT s.* FROM stations s
-        INNER JOIN recently_played rp ON s.stationuuid = rp.stationuuid
-        ORDER BY rp.played_time DESC LIMIT 20
-    """)
-    fun getRecentlyPlayedStations(): Flow<List<StationEntity>>
-
     @Query("SELECT * FROM stations WHERE stationuuid = :stationId")
     suspend fun getStationById(stationId: String): StationEntity?
 
@@ -125,6 +118,21 @@ interface FavoritesDao {
 
 @Dao
 interface RecentlyPlayedDao {
+
+    /**
+     * Reads recently played stations directly — no JOIN against `stations`.
+     * The `recently_played` table is now self-contained (RecentlyPlayedEntity
+     * stores the full station snapshot, see AppDatabase.MIGRATION_3_4), so the
+     * daily `StationDao.clearAllStations()` cycle in `runSync` cannot orphan a
+     * recently-played row: the snapshot lives in the recently-played row
+     * regardless of whether the corresponding `stations` row survives the next
+     * sync.
+     *
+     * Returned as [RecentlyPlayedEntity] (not [StationEntity]) — callers map
+     * to domain via `Mappers.RecentlyPlayedEntity.toStationDomain()`.
+     */
+    @Query("SELECT * FROM recently_played ORDER BY played_time DESC LIMIT 20")
+    fun getRecentlyPlayedEntities(): Flow<List<RecentlyPlayedEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun addToRecentlyPlayed(recentlyPlayed: RecentlyPlayedEntity)

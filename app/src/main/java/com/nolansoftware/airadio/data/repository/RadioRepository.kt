@@ -19,6 +19,7 @@ import com.nolansoftware.airadio.data.repository.mapper.toDomain
 import com.nolansoftware.airadio.data.repository.mapper.toLanguageDomain
 import com.nolansoftware.airadio.data.repository.mapper.toLanguageEntities
 import com.nolansoftware.airadio.data.repository.mapper.toFavoriteStationDomain
+import com.nolansoftware.airadio.data.repository.mapper.toRecentStationDomain
 import com.nolansoftware.airadio.data.repository.mapper.toStationDomain
 import com.nolansoftware.airadio.data.repository.mapper.toDomainStations
 import com.nolansoftware.airadio.data.repository.mapper.toStationEntities
@@ -221,7 +222,7 @@ class RadioRepository @Inject constructor(
     }
 
     fun getRecentlyPlayedStations(): Flow<List<Station>> =
-        stationDao.getRecentlyPlayedStations().map { it.toStationDomain() }
+        recentlyPlayedDao.getRecentlyPlayedEntities().map { it.toRecentStationDomain() }
 
     fun getFavoriteStations(): Flow<List<Station>> =
         favoritesDao.getFavoriteEntities().map { it.toFavoriteStationDomain() }
@@ -381,11 +382,29 @@ class RadioRepository @Inject constructor(
         favoritesDao.removeFromFavorites(stationId)
     }
 
-    suspend fun addToRecentlyPlayed(stationId: String) {
+    suspend fun addToRecentlyPlayed(station: Station) {
+        // Capture the full station snapshot in the recently_played row. The
+        // next sync may delete the matching row from `stations` (runSync
+        // clears the table), but the recently-played carousel still resolves
+        // from this snapshot — see AppDatabase.MIGRATION_3_4 +
+        // RecentlyPlayedDao.getRecentlyPlayedEntities for why the
+        // `recently_played` table no longer JOINs against `stations`.
         recentlyPlayedDao.addToRecentlyPlayed(
             RecentlyPlayedEntity(
-                stationuuid = stationId,
-                played_time = System.currentTimeMillis()
+                stationuuid = station.stationuuid,
+                played_time = System.currentTimeMillis(),
+                name = station.name,
+                url = station.url,
+                url_resolved = station.urlResolved,
+                favicon = station.favicon,
+                country = station.country,
+                countrycode = station.countryCode,
+                language = station.language,
+                tags = station.tags,
+                codec = station.codec,
+                bitrate = station.bitrate,
+                votes = station.votes,
+                lastchecktime = station.lastCheckTime
             )
         )
 

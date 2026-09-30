@@ -92,7 +92,7 @@ class PlayerViewModel @Inject constructor(
         getApplication<Application>().startForegroundService(intent)
 
         viewModelScope.launch {
-            addToRecentlyPlayedUseCase(station.stationuuid)
+            addToRecentlyPlayedUseCase(station)
         }
     }
 

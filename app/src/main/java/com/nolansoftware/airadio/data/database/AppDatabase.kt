@@ -31,7 +31,7 @@ import com.nolansoftware.airadio.data.database.entity.TagEntity
         RecentlyPlayedEntity::class,
         PagedStationCacheEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -150,6 +150,82 @@ abstract class AppDatabase : RoomDatabase() {
                 // deleting it preserves the pre-migration UX rather than
                 // resurrecting broken/empty rows.
                 db.execSQL("DELETE FROM favorites WHERE name = ''")
+            }
+        }
+
+        // v3 → v4: denormalize station snapshot into recently_played so the
+        // table becomes self-contained. After this migration, runSync's
+        // clearAllStations() no longer orphans recently-played rows — the
+        // snapshot was captured at play time and lives in the recently_played
+        // row itself.
+        //
+        // Mirrors MIGRATION_2_3 above. Existing rows get backfilled from
+        // `stations` (and a second pass from `paged_station_cache` for
+        // stations that came from Browse > paging and never landed in the
+        // popular top-N). Any row that matches neither table is deleted — it
+        // was already invisible to the user under the old INNER JOIN, so
+        // dropping it is consistent with the pre-migration UX.
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add snapshot columns with empty defaults so the migration
+                // doesn't fail on existing rows.
+                db.execSQL("ALTER TABLE recently_played ADD COLUMN name TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE recently_played ADD COLUMN url TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE recently_played ADD COLUMN url_resolved TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE recently_played ADD COLUMN favicon TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE recently_played ADD COLUMN country TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE recently_played ADD COLUMN countrycode TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE recently_played ADD COLUMN language TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE recently_played ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE recently_played ADD COLUMN codec TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE recently_played ADD COLUMN bitrate INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE recently_played ADD COLUMN votes INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE recently_played ADD COLUMN lastchecktime INTEGER NOT NULL DEFAULT 0")
+
+                // Backfill pass 1: from the popular `stations` table.
+                db.execSQL("""
+                    UPDATE recently_played SET
+                        name = COALESCE((SELECT s.name FROM stations s WHERE s.stationuuid = recently_played.stationuuid), name),
+                        url = COALESCE((SELECT s.url FROM stations s WHERE s.stationuuid = recently_played.stationuuid), url),
+                        url_resolved = COALESCE((SELECT s.url_resolved FROM stations s WHERE s.stationuuid = recently_played.stationuuid), url_resolved),
+                        favicon = COALESCE((SELECT s.favicon FROM stations s WHERE s.stationuuid = recently_played.stationuuid), favicon),
+                        country = COALESCE((SELECT s.country FROM stations s WHERE s.stationuuid = recently_played.stationuuid), country),
+                        countrycode = COALESCE((SELECT s.countrycode FROM stations s WHERE s.stationuuid = recently_played.stationuuid), countrycode),
+                        language = COALESCE((SELECT s.language FROM stations s WHERE s.stationuuid = recently_played.stationuuid), language),
+                        tags = COALESCE((SELECT s.tags FROM stations s WHERE s.stationuuid = recently_played.stationuuid), tags),
+                        codec = COALESCE((SELECT s.codec FROM stations s WHERE s.stationuuid = recently_played.stationuuid), codec),
+                        bitrate = COALESCE((SELECT s.bitrate FROM stations s WHERE s.stationuuid = recently_played.stationuuid), bitrate),
+                        votes = COALESCE((SELECT s.votes FROM stations s WHERE s.stationuuid = recently_played.stationuuid), votes),
+                        lastchecktime = COALESCE((SELECT s.lastchecktime FROM stations s WHERE s.stationuuid = recently_played.stationuuid), lastchecktime)
+                """.trimIndent())
+
+                // Backfill pass 2: from `paged_station_cache` (Browse > paging),
+                // for any row still empty after pass 1. paged_station_cache has
+                // composite PK (queryType, queryValue, pageOffset, sortPosition),
+                // so LIMIT 1 keeps the migration idempotent if a station was
+                // paged into multiple queries.
+                db.execSQL("""
+                    UPDATE recently_played SET
+                        name = COALESCE(NULLIF(name, ''), (SELECT p.name FROM paged_station_cache p WHERE p.stationuuid = recently_played.stationuuid LIMIT 1), name),
+                        url = COALESCE(NULLIF(url, ''), (SELECT p.url FROM paged_station_cache p WHERE p.stationuuid = recently_played.stationuuid LIMIT 1), url),
+                        url_resolved = COALESCE(NULLIF(url_resolved, ''), (SELECT p.url_resolved FROM paged_station_cache p WHERE p.stationuuid = recently_played.stationuuid LIMIT 1), url_resolved),
+                        favicon = COALESCE(NULLIF(favicon, ''), (SELECT p.favicon FROM paged_station_cache p WHERE p.stationuuid = recently_played.stationuuid LIMIT 1), favicon),
+                        country = COALESCE(NULLIF(country, ''), (SELECT p.country FROM paged_station_cache p WHERE p.stationuuid = recently_played.stationuuid LIMIT 1), country),
+                        countrycode = COALESCE(NULLIF(countrycode, ''), (SELECT p.countrycode FROM paged_station_cache p WHERE p.stationuuid = recently_played.stationuuid LIMIT 1), countrycode),
+                        language = COALESCE(NULLIF(language, ''), (SELECT p.language FROM paged_station_cache p WHERE p.stationuuid = recently_played.stationuuid LIMIT 1), language),
+                        tags = COALESCE(NULLIF(tags, ''), (SELECT p.tags FROM paged_station_cache p WHERE p.stationuuid = recently_played.stationuuid LIMIT 1), tags),
+                        codec = COALESCE(NULLIF(codec, ''), (SELECT p.codec FROM paged_station_cache p WHERE p.stationuuid = recently_played.stationuuid LIMIT 1), codec),
+                        bitrate = COALESCE(NULLIF(bitrate, 0), (SELECT p.bitrate FROM paged_station_cache p WHERE p.stationuuid = recently_played.stationuuid LIMIT 1), bitrate),
+                        votes = COALESCE(NULLIF(votes, 0), (SELECT p.votes FROM paged_station_cache p WHERE p.stationuuid = recently_played.stationuuid LIMIT 1), votes),
+                        lastchecktime = COALESCE(NULLIF(lastchecktime, 0), (SELECT p.lastchecktime FROM paged_station_cache p WHERE p.stationuuid = recently_played.stationuuid LIMIT 1), lastchecktime)
+                """.trimIndent())
+
+                // Drop orphans. After both backfill passes, name still being ''
+                // means no live copy of the station exists anywhere — the user
+                // couldn't see this recently-played station under the old INNER
+                // JOIN, so deleting it preserves the pre-migration UX rather than
+                // resurrecting broken/empty rows.
+                db.execSQL("DELETE FROM recently_played WHERE name = ''")
             }
         }
     }

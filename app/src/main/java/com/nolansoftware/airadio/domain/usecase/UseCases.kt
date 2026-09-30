@@ -162,8 +162,17 @@ class ToggleFavoriteUseCase @Inject constructor(
 class AddToRecentlyPlayedUseCase @Inject constructor(
     private val repository: RadioRepository
 ) {
-    suspend operator fun invoke(stationId: String) {
-        repository.addToRecentlyPlayed(stationId)
+    /**
+     * Takes the full [Station] (not just the stationuuid) because adding to
+     * recently played now persists a snapshot of the station's display
+     * fields — see [RadioRepository.addToRecentlyPlayed]. The snapshot is
+     * what makes the recently-played carousel survive the daily
+     * `StationDao.clearAllStations()` cycle; without it, a station that
+     * drops out of the popular top-N between syncs becomes invisible in the
+     * carousel even though the underlying `recently_played` row still exists.
+     */
+    suspend operator fun invoke(station: Station) {
+        repository.addToRecentlyPlayed(station)
     }
 }
 
