@@ -32,6 +32,11 @@
          data has loaded (sync is queued-but-not-running, e.g. blocked on
          WorkManager NetworkType.CONNECTED, or completed with empty result). -->
     <string name="sync_status_not_yet_run">Stations not loaded yet</string>
+    <!-- Bug #3: passive loading indicator rendered while
+         HomeViewModel.startAutoRetryLoop drives the sync in the background.
+         Same family as sync_status_not_yet_run but reads as "actively
+         working" rather than "nothing has happened yet". -->
+    <string name="sync_status_loading">Loading stations…</string>
     <string name="clear_search">Clear search</string>
     <string name="privacy_settings_title">Privacy &amp; settings</string>
     <string name="manage_privacy_options">Manage privacy options</string>

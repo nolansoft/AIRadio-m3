@@ -20,26 +20,33 @@ import com.nolansoftware.airadio.R
 import com.nolansoftware.airadio.domain.model.SyncState
 
 /**
- * Bug #1 UX safety net: surfaces an explicit "tap to sync" CTA when
- * `syncState` is [SyncState.Idle] or [SyncState.Success] AND the caller
- * reports [hasData] is false. Without this, a sync that's blocked on its
- * `NetworkType.CONNECTED` WorkManager constraint (or one that's silently
- * failed with no exceptions) leaves the user staring at a blank grid
- * with no feedback that anything is wrong.
+ * Surfaces sync progress and failure to the user as a Material 3 banner
+ * above the home grid.
  *
- * Renders nothing for [SyncState.Idle] / [SyncState.Success] when data has
- * already loaded (the screen is then fully populated and the banner would
- * be visual noise).
+ * Bug #1 + #3: in the [SyncState.Idle] / [SyncState.Success] branch with
+ * [hasData] = false we no longer render a clickable "Tap to retry" CTA.
+ * `HomeViewModel.startAutoRetryLoop` now drives the actual sync in the
+ * background; the banner is a non-interactive loading indicator that
+ * tells the user something is happening without inviting a manual
+ * action. The failed-retry CTA in the [SyncState.Failed] branch is
+ * unchanged — that branch is reached when auto-retry has exhausted its
+ * attempt cap or the user wants to force a refresh after a hard
+ * failure.
  *
- * For [SyncState.Syncing] renders an indeterminate linear progress bar and
- * a stage-aware message. For [SyncState.Failed] with [SyncState.Failed.willRetry]
- * it stays as a progress bar (WorkManager will retry); without willRetry it
- * surfaces a "tap to retry" CTA that calls [onRetry].
+ * Renders nothing for [SyncState.Idle] / [SyncState.Success] when data
+ * has already loaded (the screen is then fully populated and the banner
+ * would be visual noise).
+ *
+ * For [SyncState.Syncing] renders an indeterminate linear progress bar
+ * and a stage-aware message. For [SyncState.Failed] with
+ * [SyncState.Failed.willRetry] it stays as a progress bar (WorkManager
+ * will retry); without willRetry it surfaces a "tap to retry" CTA that
+ * calls [onRetry].
  *
  * @param hasData true if any of the screen's Room flows have produced
  *   non-empty content. When false and sync hasn't surfaced an error of
- *   its own, we assume the sync is queued-but-not-running and offer a
- *   manual retry.
+ *   its own, we show a passive loading indicator — the auto-retry loop
+ *   in `HomeViewModel` is responsible for driving the actual sync.
  */
 @Composable
 fun SyncStatusBanner(
@@ -53,24 +60,24 @@ fun SyncStatusBanner(
             if (!hasData) {
                 // Sync hasn't produced data yet (queued, blocked on
                 // NetworkType.CONNECTED, or completed with empty result).
-                // Give the user an action rather than a silent blank grid.
+                // `HomeViewModel.startAutoRetryLoop` is driving the actual
+                // sync — show a passive loading indicator rather than a
+                // clickable CTA so the user sees something is happening
+                // without being asked to take an action the loop is already
+                // taking for them (Bug #3). The string `sync_status_loading`
+                // is also kept stable across syncing / idle-empty so the
+                // banner doesn't visibly flicker when `syncState` flips
+                // briefly to `Syncing` and back.
                 Row(
                     modifier = modifier
                         .fillMaxWidth()
-                        .clickable { onRetry() }
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
-                        text = stringResource(R.string.sync_status_not_yet_run),
+                        text = stringResource(R.string.sync_status_loading),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = stringResource(R.string.sync_status_tap_to_retry),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
                     )
                 }
             }
