@@ -170,14 +170,22 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            SyncStatusBanner(
-                syncState = syncState,
-                onRetry = { homeViewModel.retrySync() }
-            )
-
             val popularStationsList = popularStations.orEmpty()
             val recentlyPlayedList = recentlyPlayed.orEmpty()
             val localStationsList = localStations.orEmpty()
+            // Bug #1 UX safety net: pass hasData so SyncStatusBanner can
+            // surface a "tap to sync" CTA when the sync hasn't produced any
+            // rows yet (e.g. WorkManager constraint blocked or sync silently
+            // empty). Without this the user sees a fully blank grid with no
+            // feedback that anything is wrong.
+            val hasData = popularStationsList.isNotEmpty() ||
+                recentlyPlayedList.isNotEmpty() ||
+                localStationsList.isNotEmpty()
+            SyncStatusBanner(
+                syncState = syncState,
+                onRetry = { homeViewModel.retrySync() },
+                hasData = hasData,
+            )
             // The grid is ALWAYS composed — skeleton items vs real items are
             // picked INSIDE the grid's `items { }` block. This keeps the
             // LazyVerticalGrid at a single stable position in the composition

@@ -28,6 +28,10 @@
     <string name="sync_status_retrying">Sync failed — retrying…</string>
     <string name="sync_status_failed_retry">Sync failed</string>
     <string name="sync_status_tap_to_retry">Tap to retry</string>
+    <!-- Bug #1 UX safety net: shown when syncState is Idle/Success and no
+         data has loaded (sync is queued-but-not-running, e.g. blocked on
+         WorkManager NetworkType.CONNECTED, or completed with empty result). -->
+    <string name="sync_status_not_yet_run">Stations not loaded yet</string>
     <string name="clear_search">Clear search</string>
     <string name="privacy_settings_title">Privacy &amp; settings</string>
     <string name="manage_privacy_options">Manage privacy options</string>
