@@ -117,24 +117,43 @@ fun SearchScreen(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            val shouldShowBanner = searchResults.size >= AdMobConfig.BANNER_SEARCH_THRESHOLD
-                            val adSlotIndex = AdMobConfig.BANNER_SEARCH_POSITION
-                            items(
-                                count = if (shouldShowBanner) searchResults.size + 1 else searchResults.size,
-                                key = { combinedIdx ->
-                                    if (shouldShowBanner && combinedIdx == adSlotIndex) "ad-banner-search"
-                                    else searchResults[combinedIdx - if (shouldShowBanner && combinedIdx > adSlotIndex) 1 else 0].stationuuid
-                                },
-                                span = { combinedIdx ->
-                                    if (shouldShowBanner && combinedIdx == adSlotIndex) GridItemSpan(maxLineSpan)
-                                    else GridItemSpan(1)
+                            // Interleave banner ads every AdMobConfig.BANNER_INTERVAL
+                            // results. With BANNER_INTERVAL = 12 the implicit
+                            // threshold is "<12 results → no ad", matching the
+                            // previous BANNER_SEARCH_THRESHOLD = 10 behavior for
+                            // short queries; for longer result sets we now get
+                            // multiple ads (every 12) instead of just one at
+                            // BANNER_SEARCH_POSITION = 5. The flat list is
+                            // recomputed per recomposition — search result lists
+                            // are typically small and remember{} inside the
+                            // LazyGridScope lambda would break @Composable
+                            // invocation rules, so we keep it inline. Stable
+                            // per-position keys (`ad-banner-search-mid-N`) keep
+                            // Pager reconciliation stable across query changes.
+                            val rows = searchResults.flatMapIndexed { idx, station ->
+                                val stationRow = listOf<Any>(station)
+                                if ((idx + 1) % AdMobConfig.BANNER_INTERVAL == 0) {
+                                    val adNumber = (idx + 1) / AdMobConfig.BANNER_INTERVAL
+                                    stationRow + listOf<Any>("ad-banner-search-mid-$adNumber")
+                                } else {
+                                    stationRow
                                 }
-                            ) { combinedIdx ->
-                                if (shouldShowBanner && combinedIdx == adSlotIndex) {
+                            }
+                            items(
+                                items = rows,
+                                key = { item ->
+                                    if (item is String) item
+                                    else (item as Station).stationuuid
+                                },
+                                span = { item ->
+                                    if (item is String) GridItemSpan(maxLineSpan)
+                                    else GridItemSpan(1)
+                                },
+                            ) { item ->
+                                if (item is String) {
                                     BannerAd(modifier = Modifier.padding(vertical = 8.dp))
                                 } else {
-                                    val stationIdx = combinedIdx - if (shouldShowBanner && combinedIdx > adSlotIndex) 1 else 0
-                                    val station = searchResults[stationIdx]
+                                    val station = item as Station
                                     StationCard(
                                         station = station,
                                         isFavorite = searchViewModel.isFavorite(station.stationuuid)

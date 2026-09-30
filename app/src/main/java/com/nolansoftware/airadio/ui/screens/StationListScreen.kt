@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.nolansoftware.airadio.R
+import com.nolansoftware.airadio.ads.AdMobConfig
+import com.nolansoftware.airadio.ads.BannerAd
 import com.nolansoftware.airadio.ads.bannerAdItem
 import com.nolansoftware.airadio.domain.model.PlayerState
 import com.nolansoftware.airadio.domain.model.Station
@@ -135,39 +137,65 @@ fun StationListScreen(
             // Either loaded successfully or a refresh failed after items
             // had already landed — render what we have.
             else {
+                // Interleave banner ads every AdMobConfig.BANNER_INTERVAL
+                // stations, then append a guaranteed end-of-list ad so
+                // short lists (e.g. CN network country subsets where Cuba
+                // or China only return ~4 stations) still surface at least
+                // one ad. The flat list is recomputed per recomposition —
+                // fine because typical StationListScreen lists are <100
+                // items; building it inside remember{} would break the
+                // LazyGridScope (@Composable invocations forbidden here)
+                // lambda, so we keep it inline. Stable per-position keys
+                // (`ad-banner-station-list-mid-N`) survive pagination
+                // without Pager reconciliation churn.
+                val rows = state.stations.flatMapIndexed { idx, station ->
+                    val stationRow = listOf<Any>(station)
+                    if ((idx + 1) % AdMobConfig.BANNER_INTERVAL == 0) {
+                        val adNumber = (idx + 1) / AdMobConfig.BANNER_INTERVAL
+                        stationRow + listOf<Any>("ad-banner-station-list-mid-$adNumber")
+                    } else {
+                        stationRow
+                    }
+                }
                 items(
-                    items = state.stations,
-                    key = { it.stationuuid },
-                ) { station ->
-                    StationCard(
-                        station = station,
-                        isFavorite = stationListViewModel.isFavorite(station.stationuuid)
-                            .collectAsState(initial = false).value,
-                        onStationClick = {
-                            handleStationClick(
-                                station = station,
-                                navController = navController,
-                                playerViewModel = playerViewModel,
-                                playerState = playerState
-                            )
-                        },
-                        onToggleFavorite = { stationListViewModel.toggleFavorite(it) }
-                    )
+                    items = rows,
+                    key = { item ->
+                        if (item is String) item
+                        else (item as Station).stationuuid
+                    },
+                    span = { item ->
+                        if (item is String) GridItemSpan(maxLineSpan)
+                        else GridItemSpan(1)
+                    },
+                ) { item ->
+                    if (item is String) {
+                        BannerAd(modifier = Modifier.padding(vertical = 8.dp))
+                    } else {
+                        val station = item as Station
+                        StationCard(
+                            station = station,
+                            isFavorite = stationListViewModel.isFavorite(station.stationuuid)
+                                .collectAsState(initial = false).value,
+                            onStationClick = {
+                                handleStationClick(
+                                    station = station,
+                                    navController = navController,
+                                    playerViewModel = playerViewModel,
+                                    playerState = playerState
+                                )
+                            },
+                            onToggleFavorite = { stationListViewModel.toggleFavorite(it) }
+                        )
+                    }
                 }
 
-                // Bug fix (browse-countries-china no-ads): insert one banner
-                // ad at the end of every loaded list. AdMobConfig.BANNER_INTERVAL
-                // = 12 was defined for this screen ("StationListScreen paging
-                // grid") but never referenced — Browse / Favorites / Search
-                // each had their own ad insertion, StationListScreen had
-                // none. The CN network exposes only a small subset of
-                // stations per country (Cuba ~4, China ~4) so an interval
-                // alone wouldn't surface ads on the screens the user
-                // actually browses — we add a guaranteed end-of-list ad
-                // matching FavoritesScreen's pattern. Stable key prevents
-                // Pager reconciliation churn across paginations.
+                // Bug fix (browse-countries-china no-ads): append a guaranteed
+                // end-of-list banner ad. Stable key prevents Pager
+                // reconciliation churn across paginations. Distinct from the
+                // mid-list ad keys (`ad-banner-station-list-mid-N`) so the
+                // two slots reconcile independently.
                 if (state.stations.isNotEmpty()) {
-                    bannerAdItem(key = "ad-banner-station-list")
+                    bannerAdItem(key = "ad-banner-station-list-end")
                 }
 
                 // Pagination footer — spans the full row so it doesn't get
