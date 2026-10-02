@@ -155,8 +155,12 @@ fun HomeScreen(
                     }
                     Spacer(Modifier.height(8.dp))
                     TextButton(onClick = {
-                        // BLOCKER-A per plan §4 risk #5: replaced by user before M6.
-                        uriHandler.openUri("https://example.com/airadio-privacy")
+                        // Privacy policy is hosted as a public page so the
+                        // same URL is used by (a) this in-app link, (b) the
+                        // Google Play Console privacy-policy field, and
+                        // (c) the GitHub repo's About → Privacy policy link.
+                        // Update all three together if it ever changes.
+                        uriHandler.openUri("https://nolansoft.github.io/AIRadio-m3/PRIVACY.html")
                         showPrivacySheet = false
                     }) {
                         Text(stringResource(R.string.privacy_policy))
