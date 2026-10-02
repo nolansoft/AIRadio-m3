@@ -100,6 +100,20 @@ app/
 - Error handling for stream failures
 - Support for various audio codecs (MP3, AAC, OGG, etc.)
 
+### Advertising
+
+This app displays banner ads served by **Google AdMob** to support ongoing
+development and server costs. AdMob is the only third-party data processor;
+see [PRIVACY.md](PRIVACY.md) for what data AdMob collects and how to opt
+out of personalized ads in-app.
+
+**To contributors:** please do **NOT** click on ads in development or test
+builds. Repeated clicks on your own ads will flag the AdMob account for
+suspicious activity and can result in the account being disabled, which
+would end revenue for the entire user base. The debug build uses
+Google's official test ad unit IDs (configured in `app/build.gradle.kts`)
+so no real ads or revenue are at risk during local development.
+
 ## License
 
 - AIRadio source code: [Apache License 2.0](LICENSE) — see [LICENSE](LICENSE) and [NOTICE](NOTICE).

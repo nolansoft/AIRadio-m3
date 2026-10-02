@@ -37,6 +37,16 @@ Thumbs.db
 *.dex
 *.class
 
+# ─── Signing keys (NEVER commit) ────────────────────────────────────────
+# Release / upload keystores bind the APK signature to a developer identity.
+# Leaking them allows anyone to publish updates under the same package name.
+# Credentials (store/key passwords) live in local.properties which is
+# already excluded above; the keystore files themselves must also be excluded.
+*.jks
+*.keystore
+*.p12
+*.pfx
+
 # ─── Editor / OS duplicate and backup files ─────────────────────────────
 # CJK-localized "copy" suffix (e.g. "gradle-wrapper - 副本.properties")
 *副本*
