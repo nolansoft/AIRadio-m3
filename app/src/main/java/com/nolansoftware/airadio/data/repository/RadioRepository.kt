@@ -2,7 +2,12 @@
 
 package com.nolansoftware.airadio.data.repository
 
+import com.nolansoftware.airadio.data.api.MirrorRegistry
 import com.nolansoftware.airadio.data.api.RadioBrowserApi
+import com.nolansoftware.airadio.data.api.RadioBrowserApiFactory
+import com.nolansoftware.airadio.data.api.RegionFailoverSyncExecutor
+import com.nolansoftware.airadio.data.api.RegionStore
+import com.nolansoftware.airadio.data.api.model.ApiStation
 import com.nolansoftware.airadio.data.database.dao.CountryDao
 import com.nolansoftware.airadio.data.database.dao.FavoritesDao
 import com.nolansoftware.airadio.data.database.dao.LanguageDao
@@ -48,7 +53,9 @@ import javax.inject.Singleton
 
 @Singleton
 class RadioRepository @Inject constructor(
-    private val radioBrowserApi: RadioBrowserApi,
+    private val apiFactory: RadioBrowserApiFactory,
+    private val mirrorRegistry: MirrorRegistry,
+    private val regionStore: RegionStore,
     private val stationDao: StationDao,
     private val countryDao: CountryDao,
     private val languageDao: LanguageDao,
@@ -60,6 +67,44 @@ class RadioRepository @Inject constructor(
 
     private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
     val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
+
+    /**
+     * Cached API list rebuilt once per cold-start sync from the live
+     * [MirrorRegistry] output. Building a Retrofit instance per host is
+     * cheap (the OkHttpClient + Gson are shared singletons), but doing
+     * it on every API call inside `fetchStationsPage` would still allocate
+     * a new Retrofit per page — this cache gives paged browsing a stable
+     * list across the user's scroll session while letting the next cold
+     * start pick up any new mirrors the registry has discovered.
+     */
+    @Volatile
+    private var cachedApis: List<RadioBrowserApi> = emptyList()
+
+    /**
+     * Resolves the current mirror list (cache-first via [MirrorRegistry])
+     * and rebuilds [cachedApis]. Called at the start of every sync and at
+     * the start of every paging request so a fresh cold-start picks up
+     * registry updates without needing a process restart.
+     */
+    private suspend fun resolveApis(): List<RadioBrowserApi> {
+        val hosts = mirrorRegistry.getMirrors()
+        val fresh = hosts.map(apiFactory::create)
+        cachedApis = fresh
+        return fresh
+    }
+
+    /**
+     * The API instance corresponding to the last-known-working region.
+     * Used by [fetchStationsPage] (user-driven paged browsing, not the
+     * cold-start sync) where we want the fastest path to a reachable host
+     * rather than paying the cost of trying every region on every scroll.
+     * Falls back to index 0 if [resolveApis] hasn't run yet.
+     */
+    private suspend fun preferredApi(): RadioBrowserApi {
+        val list = cachedApis.ifEmpty { resolveApis() }
+        val idx = validatedRegionIndex(regionStore.currentIndex, list.size)
+        return list[idx]
+    }
 
     /**
      * Serializes concurrent sync runs (cold-start one-shot + daily periodic
@@ -194,27 +239,33 @@ class RadioRepository @Inject constructor(
         // still decided by stations.size vs the *caller's* limit, which
         // here is PAGE_SIZE = 5000, not CHUNK_SIZE.
         if (limit <= CHUNK_SIZE) {
-            radioBrowserApi.searchStations(
-                country = country,
-                language = language,
-                tag = tag,
-                offset = offset,
-                limit = limit,
-            ).toDomainStations()
+            val apis = cachedApis.ifEmpty { resolveApis() }
+            fetchStationsPageWithFailover(apis, regionStore) { api ->
+                api.searchStations(
+                    country = country,
+                    language = language,
+                    tag = tag,
+                    offset = offset,
+                    limit = limit,
+                )
+            }.toDomainStations()
         } else {
             val numChunks = (limit + CHUNK_SIZE - 1) / CHUNK_SIZE
+            val apis = cachedApis.ifEmpty { resolveApis() }
             coroutineScope {
                 (0 until numChunks).map { chunkIdx ->
                     async {
                         val chunkOffset = offset + chunkIdx * CHUNK_SIZE
                         val chunkLimit = minOf(CHUNK_SIZE, limit - chunkIdx * CHUNK_SIZE)
-                        radioBrowserApi.searchStations(
-                            country = country,
-                            language = language,
-                            tag = tag,
-                            offset = chunkOffset,
-                            limit = chunkLimit,
-                        ).toDomainStations()
+                        fetchStationsPageWithFailover(apis, regionStore) { api ->
+                            api.searchStations(
+                                country = country,
+                                language = language,
+                                tag = tag,
+                                offset = chunkOffset,
+                                limit = chunkLimit,
+                            )
+                        }.toDomainStations()
                     }
                 }.awaitAll().flatten()
             }
@@ -289,57 +340,75 @@ class RadioRepository @Inject constructor(
      * every child down. Each fetch completes its insert as soon as its
      * data arrives. Stations emit start and completion states (the UI
      * banner reads total from the start state).
+     *
+     * Region failover + round-robin: at the start of every sync we
+     * re-resolve the live mirror list via [MirrorRegistry.getMirrors]
+     * (cache-first with a 24-hour TTL) and build one [RadioBrowserApi]
+     * per host via [RadioBrowserApiFactory]. The whole batch is wrapped
+     * in [RegionFailoverSyncExecutor.execute], starting at
+     * `(lastSuccessfulIndex + 1) % size` so each cold-start sync rotates
+     * to a different mirror instead of hammering index 0. Non-network
+     * failures (HTTP errors, parse failures) bubble up immediately
+     * because switching regions cannot fix them.
      */
     private suspend fun runSync(fullSync: Boolean) {
         syncMutex.withLock {
             try {
                 _syncState.value = SyncState.Syncing(SyncState.Syncing.Stage.COUNTRIES)
 
-                coroutineScope {
-                    val stationsDeferred = async {
-                        val stations = if (fullSync) {
-                            radioBrowserApi.getStations(limit = 1500)
-                        } else {
-                            radioBrowserApi.getStations() // default 300
+                val apis = resolveApis()
+                val failover = RegionFailoverSyncExecutor(apis) { idx ->
+                    regionStore.currentIndex = idx
+                }
+                val startIdx = (regionStore.currentIndex + 1) % apis.size
+
+                failover.execute(startIndex = startIdx) { api ->
+                    coroutineScope {
+                        val stationsDeferred = async {
+                            val stations = if (fullSync) {
+                                api.getStations(limit = 1500)
+                            } else {
+                                api.getStations() // default 300
+                            }
+                            val total = stations.size
+                            val entities = stations.toStationEntities()
+                            _syncState.value = SyncState.Syncing(
+                                SyncState.Syncing.Stage.STATIONS,
+                                processed = 0,
+                                total = total
+                            )
+                            stationDao.clearAllStations()
+                            stationDao.insertStations(entities)
+                            _syncState.value = SyncState.Syncing(
+                                SyncState.Syncing.Stage.STATIONS,
+                                processed = total,
+                                total = total
+                            )
                         }
-                        val total = stations.size
-                        val entities = stations.toStationEntities()
-                        _syncState.value = SyncState.Syncing(
-                            SyncState.Syncing.Stage.STATIONS,
-                            processed = 0,
-                            total = total
-                        )
-                        stationDao.clearAllStations()
-                        stationDao.insertStations(entities)
-                        _syncState.value = SyncState.Syncing(
-                            SyncState.Syncing.Stage.STATIONS,
-                            processed = total,
-                            total = total
-                        )
-                    }
 
-                    val countriesDeferred = async {
-                        _syncState.value = SyncState.Syncing(SyncState.Syncing.Stage.COUNTRIES)
-                        val countries = radioBrowserApi.getCountries()
-                        countryDao.clearAllCountries()
-                        countryDao.insertCountries(countries.toCountryEntities())
-                    }
+                        val countriesDeferred = async {
+                            _syncState.value = SyncState.Syncing(SyncState.Syncing.Stage.COUNTRIES)
+                            val countries = api.getCountries()
+                            countryDao.clearAllCountries()
+                            countryDao.insertCountries(countries.toCountryEntities())
+                        }
 
-                    val languagesDeferred = async {
-                        _syncState.value = SyncState.Syncing(SyncState.Syncing.Stage.LANGUAGES)
-                        val languages = radioBrowserApi.getLanguages()
-                        languageDao.clearAllLanguages()
-                        languageDao.insertLanguages(languages.toLanguageEntities())
-                    }
+                        val languagesDeferred = async {
+                            _syncState.value = SyncState.Syncing(SyncState.Syncing.Stage.LANGUAGES)
+                            val languages = api.getLanguages()
+                            languageDao.clearAllLanguages()
+                            languageDao.insertLanguages(languages.toLanguageEntities())
+                        }
 
-                    val tagsDeferred = async {
-                        _syncState.value = SyncState.Syncing(SyncState.Syncing.Stage.TAGS)
-                        val tags = radioBrowserApi.getTags()
-                        tagDao.clearAllTags()
-                        tagDao.insertTags(tags.toTagEntities())
-                    }
+                        val tagsDeferred = async {
+                            _syncState.value = SyncState.Syncing(SyncState.Syncing.Stage.TAGS)
+                            val tags = api.getTags()
+                            tagDao.clearAllTags()
+                            tagDao.insertTags(tags.toTagEntities())
+                        }
 
-                    awaitAll(countriesDeferred, languagesDeferred, tagsDeferred, stationsDeferred)
+                        awaitAll(countriesDeferred, languagesDeferred, tagsDeferred, stationsDeferred)
+                    }
                 }
                 _syncState.value = SyncState.Success
             } catch (e: Exception) {
@@ -425,3 +494,52 @@ class RadioRepository @Inject constructor(
         private const val CHUNK_SIZE = 1000
     }
 }
+
+/**
+ * RB-004: wraps a paging API call in [RegionFailoverSyncExecutor] so a
+ * Browse-page scroll that lands on a dead mirror transparently retries
+ * the next mirror instead of bubbling a Paging error to the user.
+ *
+ * Behavior contract (covered by
+ * `RadioRepositoryPagingFailoverTest`):
+ *  - Always attempts the persisted [RegionStore.currentIndex] first so
+ *    we don't hit every mirror on every scroll — preferred-first.
+ *  - On [IOException] (DNS / TCP / TLS / read timeout) advances to the
+ *    next mirror; on any other exception (HTTP 4xx/5xx, JSON parse) the
+ *    exception propagates immediately because swapping regions will not
+ *    fix it.
+ *  - On success, [RegionStore.currentIndex] is updated to the winning
+ *    mirror's index via the executor's [RegionFailoverSyncExecutor.onSuccess]
+ *    callback so the next page-load prefers it too.
+ *
+ * Kept as a top-level `internal` helper (not a private method on
+ * [RadioRepository]) so the failure-recovery wiring is testable without
+ * the seven Room DAOs the repository itself needs.
+ */
+internal suspend fun fetchStationsPageWithFailover(
+    apis: List<RadioBrowserApi>,
+    regionStore: RegionStore,
+    fetchAction: suspend (RadioBrowserApi) -> List<ApiStation>,
+): List<ApiStation> {
+    require(apis.isNotEmpty()) { "fetchStationsPageWithFailover requires at least one API" }
+    val startIdx = validatedRegionIndex(regionStore.currentIndex, apis.size)
+    val executor = RegionFailoverSyncExecutor(apis) { idx ->
+        regionStore.currentIndex = idx
+    }
+    return executor.execute(startIndex = startIdx, action = fetchAction)
+}
+
+/**
+ * RB-005: clamps a persisted `regionStore.currentIndex` against the size
+ * of the currently-known mirror list, returning a safe index into that
+ * list. Replaces inline `coerceIn(0, list.lastIndex)` calls — the inline
+ * form silently maps "stale index pointing at a *different* host" to a
+ * valid in-range index without telling the caller anything changed.
+ *
+ * For the minimum M1 fix we only clamp by *list size*. Tracking the host
+ * the persisted index referred to (so we can detect "index=1 used to mean
+ * at1, now means nl1") would require extending `RegionStore` to persist
+ * a host identity alongside the index, which the M1 task brief excluded.
+ */
+internal fun validatedRegionIndex(rawIndex: Int, listSize: Int): Int =
+    if (rawIndex in 0 until listSize) rawIndex else 0

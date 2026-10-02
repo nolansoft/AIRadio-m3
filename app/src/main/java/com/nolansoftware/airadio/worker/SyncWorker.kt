@@ -63,8 +63,18 @@ class SyncWorker @AssistedInject constructor(
         private const val MAX_AUTO_RETRIES = 2
 
         fun schedule(context: Context) {
+            // `NetworkType.CONNECTED` requires `NET_CAPABILITY_VALIDATED`, which
+            // captive portals / corporate proxies / certain ISPs never set even
+            // when packets flow — that constraint silently stranded the
+            // SyncWorker on those networks. The repository-level
+            // `RegionFailoverSyncExecutor` already handles network failures
+            // gracefully (IOException → try next region → eventually surface
+            // `SyncState.Failed`), so the constraint here is dropped to
+            // `NOT_REQUIRED`. OkHttp's 30/60/120 s timeouts bound a single
+            // request; the worker's own retry/backoff (Result.retry, default
+            // exponential) bounds the chain.
             val constraints = Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
                 .build()
 
             // Periodic daily sync — KEEP so we don't reset the schedule on every cold start.

@@ -4,7 +4,15 @@ package com.nolansoftware.airadio.di
 
 import android.content.Context
 import androidx.room.Room
+import com.nolansoftware.airadio.data.api.MirrorEntry
+import com.nolansoftware.airadio.data.api.MirrorRegistry
+import com.nolansoftware.airadio.data.api.MirrorRegistryApi
 import com.nolansoftware.airadio.data.api.RadioBrowserApi
+import com.nolansoftware.airadio.data.api.RadioBrowserApiFactory
+import com.nolansoftware.airadio.data.api.SharedPrefsMirrorCacheStore
+import com.nolansoftware.airadio.data.api.SharedPrefsRegionStore
+import com.nolansoftware.airadio.data.api.RegionStore
+import com.nolansoftware.airadio.data.api.UserAgentInterceptor
 import com.nolansoftware.airadio.data.database.AppDatabase
 import com.nolansoftware.airadio.data.database.dao.CountryDao
 import com.nolansoftware.airadio.data.database.dao.FavoritesDao
@@ -17,6 +25,7 @@ import com.nolansoftware.airadio.data.repository.RadioRepository
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.nolansoftware.airadio.BuildConfig
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -57,20 +66,43 @@ object AppModule {
             .readTimeout(Duration.ofSeconds(60))
             .writeTimeout(Duration.ofSeconds(30))
             .callTimeout(Duration.ofSeconds(120))
+            // RB-002: identify AIRadio to the Radio Browser operators. The
+            // header is set last so it overrides any caller-attached UA.
+            .addInterceptor(UserAgentInterceptor(BuildConfig.VERSION_NAME))
             .addInterceptor(loggingInterceptor)
             .build()
     }
 
     @Provides
     @Singleton
-    fun provideRadioBrowserApi(okHttpClient: OkHttpClient, gson: Gson): RadioBrowserApi {
+    fun provideMirrorRegistryApi(
+        okHttpClient: OkHttpClient,
+        gson: Gson,
+    ): MirrorRegistryApi {
+        // Canonical entry point per the project docs. `all.` is supposed
+        // to DNS-round-robin to a healthy backend; the user has confirmed
+        // it works in their browser, so trust that signal over our CI
+        // environment's connectivity (which can't reach `all.` over TLS).
+        // If the user's network later loses `all.`, the executor's
+        // round-robin + OkHttp's error handling cover the fallback to a
+        // discovered mirror returned in the response body.
         return Retrofit.Builder()
-            .baseUrl(RadioBrowserApi.BASE_URL)
+            .baseUrl("https://all.api.radio-browser.info/")
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
-            .create(RadioBrowserApi::class.java)
+            .create(MirrorRegistryApi::class.java)
     }
+
+    @Provides
+    @Singleton
+    fun provideMirrorRegistry(
+        registryApi: MirrorRegistryApi,
+        cacheStore: SharedPrefsMirrorCacheStore,
+    ): MirrorRegistry = MirrorRegistry(
+        fetcher = { registryApi.getServers() },
+        cacheStore = cacheStore,
+    )
 
     @Provides
     @Singleton
@@ -114,7 +146,9 @@ object AppModule {
     @Provides
     @Singleton
     fun provideRadioRepository(
-        api: RadioBrowserApi,
+        apiFactory: RadioBrowserApiFactory,
+        mirrorRegistry: MirrorRegistry,
+        regionStore: RegionStore,
         stationDao: StationDao,
         countryDao: CountryDao,
         languageDao: LanguageDao,
@@ -124,7 +158,9 @@ object AppModule {
         pagedStationCacheDao: PagedStationCacheDao,
     ): RadioRepository {
         return RadioRepository(
-            api,
+            apiFactory,
+            mirrorRegistry,
+            regionStore,
             stationDao,
             countryDao,
             languageDao,
@@ -134,4 +170,30 @@ object AppModule {
             pagedStationCacheDao,
         )
     }
+}
+
+/**
+ * Binds the SharedPreferences-backed [RegionStore] implementation as the
+ * singleton [RegionStore] consumed by `RadioRepository`. Kept in a separate
+ * abstract module because `@Binds` requires an abstract class while
+ * `AppModule` is an object with `@Provides` methods.
+ */
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class RegionStoreModule {
+    @Binds
+    @Singleton
+    abstract fun bindRegionStore(impl: SharedPrefsRegionStore): RegionStore
+
+    @Binds
+    @Singleton
+    abstract fun bindRadioBrowserApiFactory(
+        impl: com.nolansoftware.airadio.data.api.DefaultRadioBrowserApiFactory,
+    ): RadioBrowserApiFactory
+
+    @Binds
+    @Singleton
+    abstract fun bindMirrorCacheStore(
+        impl: SharedPrefsMirrorCacheStore,
+    ): com.nolansoftware.airadio.data.api.MirrorCacheStore
 }

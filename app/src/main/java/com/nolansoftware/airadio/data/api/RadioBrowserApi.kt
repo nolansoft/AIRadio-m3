@@ -49,10 +49,24 @@ interface RadioBrowserApi {
     suspend fun getTags(): List<ApiTag>
 
     companion object {
-        // The bare "api.radio-browser.info" hostname GeoIP-resolves to a regional
-        // backend, but in many networks (and on this emulator) it returns 404 because
-        // no A record is published. Pin to a known-good regional server instead.
-        // See https://de1.api.radio-browser.info/ — other regions: nl1, at1, etc.
+        /**
+         * Single default base URL for callers that don't need multi-region
+         * failover (e.g. one-off tools, instrumented tests). The production
+         * cold-start sync goes through `MirrorRegistry` + `RadioBrowserApiFactory`
+         * which build a per-host Retrofit on demand from the live registry —
+         * see `AppModule.provideMirrorRegistryApi` and
+         * `DefaultRadioBrowserApiFactory`. The fallback used by
+         * [com.nolansoftware.airadio.data.api.MirrorRegistry] when both the
+         * live fetch and the on-disk cache fail is `["de1.api.radio-browser.info"]`
+         * (see `MirrorRegistry.DEFAULT_FALLBACK`).
+         *
+         * Updated 2026-10-02 against the live registry at
+         * `https://de1.api.radio-browser.info/json/servers` — the project
+         * currently exposes only `de1` (plus its IPv6 alias `de2`, same IP).
+         * Historical `nl1` / `at1` / `fr1` / `ch1` / `us1` / `uk1` mirrors
+         * all return NXDOMAIN. When new mirrors come online, no code change
+         * is needed — the registry will discover them automatically.
+         */
         const val BASE_URL = "https://de1.api.radio-browser.info/"
     }
 }
