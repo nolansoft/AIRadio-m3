@@ -96,38 +96,44 @@ fun SyncStatusBanner(
             }
         }
         is SyncState.Failed -> {
-            if (syncState.willRetry) {
-                Column(modifier = modifier.fillMaxWidth()) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            // The banner always surfaces the actual error reason AND a
+            // manual retry CTA, regardless of whether auto-retry is still
+            // pending. Showing the underlying exception (e.g.
+            // "Unable to resolve host \"de1.api.radio-browser.info\"")
+            // lets the user distinguish "switch network" from "wait it
+            // out" — without that signal a generic "Sync failed" reads
+            // as the app being broken. `clickable` covers the whole row
+            // so the user is never one tap away from re-trying.
+            Row(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .clickable { onRetry() }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = stringResource(R.string.sync_status_retrying),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                }
-            } else {
-                Row(
-                    modifier = modifier
-                        .fillMaxWidth()
-                        .clickable { onRetry() }
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = stringResource(R.string.sync_status_failed_retry),
+                        text = stringResource(
+                            R.string.sync_status_failed_with_reason,
+                            syncState.message,
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error
+                        color = MaterialTheme.colorScheme.error,
                     )
-                    Text(
-                        text = stringResource(R.string.sync_status_tap_to_retry),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.error
-                    )
+                    if (syncState.willRetry) {
+                        Text(
+                            text = stringResource(R.string.sync_status_retrying),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
+                Text(
+                    text = stringResource(R.string.sync_status_tap_to_retry),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         }
     }

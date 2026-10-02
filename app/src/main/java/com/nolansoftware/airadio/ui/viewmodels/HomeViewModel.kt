@@ -186,12 +186,15 @@ internal suspend fun safePerformSync(syncAction: suspend () -> Unit) {
  *  loop as automatic, not as something they had to wait for. */
 private const val INITIAL_AUTO_RETRY_DELAY_MS = 3_000L
 
-/** Gap between auto-retry attempts after the first one. Long enough to
- *  give OkHttp room to resolve DNS / establish TLS without busy-looping. */
-private const val AUTO_RETRY_DELAY_MS = 10_000L
+/** Gap between auto-retry attempts after the first one. Short enough that
+ *  the user sees a clear "still trying" cadence (one attempt per ~5 s)
+ *  rather than staring at a static "Sync failed" banner for a minute. */
+private const val AUTO_RETRY_DELAY_MS = 5_000L
 
 /** Hard cap on auto-retry attempts to bound resource use on a device
- *  that is permanently offline. The user can still trigger another
- *  retry manually via `retrySync()` / the failed-CTA branch of the
- *  banner, and the next cold start re-arms the loop. */
-private const val MAX_AUTO_RETRY_ATTEMPTS = 6
+ *  that is permanently offline, AND to bound how long the user sees
+ *  "Sync failed — retrying…" before the banner offers a manual CTA.
+ *  Worst-case wall clock = 3 s + 2 × 5 s = 13 s; the user can still
+ *  trigger another retry manually via `retrySync()` / the failed-CTA
+ *  branch of the banner, and the next cold start re-arms the loop. */
+private const val MAX_AUTO_RETRY_ATTEMPTS = 2

@@ -27,6 +27,7 @@
     <string name="sync_status_stations_progress">Loading stations… (%1$d / %2$d)</string>
     <string name="sync_status_retrying">Sync failed — retrying…</string>
     <string name="sync_status_failed_retry">Sync failed</string>
+    <string name="sync_status_failed_with_reason">Sync failed: %1$s</string>
     <string name="sync_status_tap_to_retry">Tap to retry</string>
     <!-- Bug #1 UX safety net: shown when syncState is Idle/Success and no
          data has loaded (sync is queued-but-not-running, e.g. blocked on
