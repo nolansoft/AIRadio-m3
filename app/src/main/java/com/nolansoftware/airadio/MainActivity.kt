@@ -24,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -33,6 +35,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.nolansoftware.airadio.consent.ConsentManager
+import com.nolansoftware.airadio.monetization.InterstitialTrigger
+import com.nolansoftware.airadio.monetization.MonetizationManager
 import com.nolansoftware.airadio.ui.navigation.Screen
 import com.nolansoftware.airadio.ui.navigation.bottomNavItems
 import com.nolansoftware.airadio.ui.screens.BrowseScreen
@@ -51,6 +55,10 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var consentManager: ConsentManager
 
+    @Inject lateinit var monetizationManager: MonetizationManager
+
+    private var lastStopWasBackground = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
@@ -64,6 +72,21 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStop(owner: LifecycleOwner) {
+                // onStop fires on rotation too; gate to avoid misfiring AppForeground
+                // interstitial on every rotation. Mirrors PlayerScreen.onDispose guard.
+                if (!isChangingConfigurations) {
+                    lastStopWasBackground = true
+                }
+            }
+            override fun onStart(owner: LifecycleOwner) {
+                if (lastStopWasBackground) {
+                    monetizationManager.showInterstitialIfReady(InterstitialTrigger.AppForeground)
+                }
+                lastStopWasBackground = false
+            }
+        })
     }
 }
 
