@@ -7,6 +7,7 @@ import android.app.Application
 import android.content.pm.ApplicationInfo
 import android.util.Log
 import com.google.android.gms.ads.MobileAds
+import com.nolansoftware.airadio.BuildConfig
 import com.google.android.ump.ConsentDebugSettings
 import com.google.android.ump.ConsentForm.OnConsentFormDismissedListener
 import com.google.android.ump.ConsentInformation
@@ -70,9 +71,25 @@ class ConsentManager @Inject constructor() {
      * via `.stateIn(...)`. Returns [Flow] (not [StateFlow]) so the cold/hot
      * boundary lives at the consumer — matches the pattern used by
      * `state.map { ... }.stateIn(scope, ...)` in Task 5's brief.
+     *
+     * Dev ergonomics: in [BuildConfig.DEBUG], also returns true for
+     * [ConsentState.Unknown], [ConsentState.OfflineFallback], and
+     * [ConsentState.WebViewIncompatible]. This lets `installDebug` show test
+     * ads even when UMP can't reach the consent server (corporate proxies,
+     * emulator network config) or when the WebView is broken. Production
+     * behavior is unchanged — release builds still gate on the real consent
+     * state.
      */
     fun canRequestAds(): Flow<Boolean> = _state.map { s ->
-        s is ConsentState.Obtained || s is ConsentState.NotRequired
+        when {
+            s is ConsentState.Obtained || s is ConsentState.NotRequired -> true
+            BuildConfig.DEBUG && (
+                s is ConsentState.Unknown ||
+                s is ConsentState.OfflineFallback ||
+                s is ConsentState.WebViewIncompatible
+            ) -> true
+            else -> false
+        }
     }
 
     fun initialize(app: Application) {
@@ -95,7 +112,15 @@ class ConsentManager @Inject constructor() {
         // host app). Skip MobileAds + the consent form entirely so the app
         // stays usable; the rest of the UI does not render banners once the
         // state is WebViewIncompatible.
-        if (BlueStacksWebViewDetector.isBrokenWebViewEnvironment(activity)) {
+        //
+        // Dev ergonomics: in [BuildConfig.DEBUG], skip this guard so the
+        // AdMob SDK gets a chance to initialize. If the WebView really IS
+        // broken, MobileAds.initialize will throw and `initializeMobileAds`'s
+        // try/catch will swallow it — the user just won't see ads. If the
+        // detector was a false positive (e.g., the emulator has the
+        // com.uncube.launcher3 package but a working WebView), this lets ads
+        // actually serve. RELEASE behavior is unchanged.
+        if (!BuildConfig.DEBUG && BlueStacksWebViewDetector.isBrokenWebViewEnvironment(activity)) {
             _state.value = ConsentState.WebViewIncompatible
             // Explicit: on broken emulators UMP is bypassed entirely, so
             // privacyOptionsRequirementStatus is never read from the server.
