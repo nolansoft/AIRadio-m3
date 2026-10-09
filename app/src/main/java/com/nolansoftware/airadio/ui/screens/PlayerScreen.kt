@@ -64,6 +64,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -186,7 +187,10 @@ private fun PlayerContent(
     monetizationManager: MonetizationManager,
 ) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp)
+            .testTag("player_controls"),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         // Hero artwork
@@ -308,7 +312,8 @@ private fun PlayerContent(
             surfaceId = SurfaceId.Player,
             modifier = Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding(),
+                .navigationBarsPadding()
+                .testTag("player_banner_slot"),
         )
     }
 }

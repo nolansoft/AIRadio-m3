@@ -108,6 +108,11 @@ android {
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.5"
     }
+    // Robolectric Compose UI tests need real Android resources (themes, attrs,
+    // MaterialTheme attributes). Without this, setContent throws at runtime.
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
 }
 
 configure<com.jaredsburrows.license.LicenseReportExtension> {
@@ -198,6 +203,16 @@ dependencies {
     // Kotlin 1.9.20. No Mockito (fakes only) — Mockito would force us to add
     // mockito-inline for the AdMob final classes.
     testImplementation("org.robolectric:robolectric:4.11.1")
+    // Compose UI testing on the JVM (via Robolectric). createComposeRule() +
+    // onNodeWithTag / getBoundsInRoot / assertHeightIsEqualTo all live here.
+    // Pinned to the same Compose BOM as the production Compose dep.
+    testImplementation(platform("androidx.compose:compose-bom:2024.12.01"))
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    // ui-test-manifest is debugImplementation per Compose testing docs — it
+    // ships a Compose host Activity used by createComposeRule, not just test
+    // classes. Putting it as testImplementation fails the lint
+    // TestManifestGradleConfiguration check.
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation(platform("androidx.compose:compose-bom:2024.12.01"))
