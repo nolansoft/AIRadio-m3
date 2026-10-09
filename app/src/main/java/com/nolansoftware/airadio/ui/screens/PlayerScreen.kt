@@ -2,6 +2,7 @@
 
 package com.nolansoftware.airadio.ui.screens
 
+import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -46,6 +48,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
@@ -59,6 +62,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -67,6 +71,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nolansoftware.airadio.domain.model.PlayerState
 import com.nolansoftware.airadio.domain.model.Station
+import com.nolansoftware.airadio.monetization.InterstitialTrigger
+import com.nolansoftware.airadio.monetization.MonetizationManager
+import com.nolansoftware.airadio.monetization.SurfaceId
 import com.nolansoftware.airadio.ui.components.FavoriteHeart
 import com.nolansoftware.airadio.ui.components.StationCover
 import com.nolansoftware.airadio.ui.viewmodels.PlayerViewModel
@@ -80,6 +87,22 @@ fun PlayerScreen(
     viewModel: PlayerViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(stationId) { viewModel.loadStation(stationId) }
+
+    val activity = LocalContext.current as ComponentActivity
+
+    DisposableEffect(activity) {
+        onDispose {
+            if (activity.isFinishing && !activity.isChangingConfigurations) {
+                viewModel.monetizationManager
+                    .showInterstitialIfReady(InterstitialTrigger.ExitFromPlayer)
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.monetizationManager
+            .loadInterstitial(InterstitialTrigger.ExitFromPlayer)
+    }
 
     val playerState by viewModel.playerState.observeAsState(PlayerState.Idle)
     val currentStation = viewModel.currentStation
@@ -145,6 +168,7 @@ fun PlayerScreen(
                 onStop = { viewModel.stop() },
                 onRetry = { viewModel.playStation(station) },
                 onToggleFavorite = { viewModel.toggleFavorite(station) },
+                monetizationManager = viewModel.monetizationManager,
             )
         }
     }
@@ -159,6 +183,7 @@ private fun PlayerContent(
     onStop: () -> Unit,
     onRetry: () -> Unit,
     onToggleFavorite: () -> Unit,
+    monetizationManager: MonetizationManager,
 ) {
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp),
@@ -278,6 +303,13 @@ private fun PlayerContent(
         }
 
         Spacer(modifier = Modifier.height(32.dp))
+
+        monetizationManager.BannerAd(
+            surfaceId = SurfaceId.Player,
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding(),
+        )
     }
 }
 

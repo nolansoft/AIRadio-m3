@@ -21,6 +21,7 @@ import com.nolansoftware.airadio.domain.usecase.AddToRecentlyPlayedUseCase
 import com.nolansoftware.airadio.domain.usecase.GetStationByIdUseCase
 import com.nolansoftware.airadio.domain.usecase.IsFavoriteUseCase
 import com.nolansoftware.airadio.domain.usecase.ToggleFavoriteUseCase
+import com.nolansoftware.airadio.monetization.MonetizationManager
 import com.nolansoftware.airadio.player.RadioPlayerService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -36,7 +37,8 @@ class PlayerViewModel @Inject constructor(
     private val getStationByIdUseCase: GetStationByIdUseCase,
     private val toggleFavoriteUseCase: ToggleFavoriteUseCase,
     private val isFavoriteUseCase: IsFavoriteUseCase,
-    private val addToRecentlyPlayedUseCase: AddToRecentlyPlayedUseCase
+    private val addToRecentlyPlayedUseCase: AddToRecentlyPlayedUseCase,
+    val monetizationManager: MonetizationManager,
 ) : AndroidViewModel(context as Application) {
 
     private var playerService: RadioPlayerService? = null
