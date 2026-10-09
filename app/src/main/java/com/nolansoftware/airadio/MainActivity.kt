@@ -62,6 +62,26 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+
+        // Dev ergonomics: in DEBUG, force MobileAds.initialize so ad serving
+        // works even when UMP's consent flow is stuck (e.g., the consent
+        // server fundingchoicesmessages.google.com is unreachable, or the
+        // BlueStacksWebViewDetector flags this emulator as broken). The
+        // ConsentManager normally calls MobileAds.initialize from the
+        // consent success/failure listeners — if those never fire, the SDK
+        // never initializes and no ads can serve. The SDK's own try/catch
+        // handles the case where the underlying WebView is genuinely broken
+        // (it just logs a warning and continues). RELEASE behavior is
+        // unchanged — MobileAds.initialize is still driven by the consent
+        // listeners in production.
+        if (BuildConfig.DEBUG) {
+            try {
+                com.google.android.gms.ads.MobileAds.initialize(this) { /* ready */ }
+            } catch (e: Throwable) {
+                android.util.Log.w("MainActivity", "Mobile Ads unavailable on this device", e)
+            }
+        }
+
         setContent {
             AIRadioTheme {
                 Surface(
