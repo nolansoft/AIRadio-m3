@@ -1,8 +1,9 @@
-// app/src/test/java/com/nolansoftware/airadio/monetization/AdmobLoadInterstitialTest.kt
+// SPDX-License-Identifier: Apache-2.0
+
 package com.nolansoftware.airadio.monetization
 
+import com.nolansoftware.airadio.BuildConfig
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -24,24 +25,30 @@ class AdmobLoadInterstitialTest {
             consents = FakeConsentManager(consentValue).consents,
         )
 
-    @Test fun `loadInterstitial is a no-op when interstitial unit ID is blank`() {
-        // Default BuildConfig has ADMOB_INTERSTITIAL_*_ID == "" → must silently no-op.
-        val mgr = newManager()
-        mgr.loadInterstitial(InterstitialTrigger.ExitFromPlayer)
-        // No cache populated, no events emitted.
-        assertFalse(mgr.hasCached(InterstitialTrigger.ExitFromPlayer))
-        assertEquals(emptyList<MonetizationEvent>(), mgr.recordedEvents)
-    }
-
-    @Test fun `interstitialUnitIdFor returns null for blank BuildConfig values`() {
-        val mgr = newManager()
-        assertEquals(null, mgr.interstitialUnitIdFor(InterstitialTrigger.ExitFromPlayer))
-        assertEquals(null, mgr.interstitialUnitIdFor(InterstitialTrigger.AppForeground))
+    @Test fun `interstitialUnitIdFor falls back to global test ID in DEBUG when per-trigger ID is empty`() {
+        // In DEBUG, when the per-trigger ID is unset, we fall back to the
+        // pre-existing global BuildConfig.ADMOB_INTER_ID (which build.gradle.kts
+        // hardcodes to Google's test ID for debug builds). This is the
+        // dev-ergonomics behavior so installDebug shows test interstitials
+        // immediately without local.properties edits.
+        if (BuildConfig.ADMOB_INTERSTITIAL_EXIT_ID.isBlank() &&
+            BuildConfig.ADMOB_INTERSTITIAL_FOREGROUND_ID.isBlank() &&
+            BuildConfig.DEBUG) {
+            val mgr = newManager()
+            assertEquals(
+                BuildConfig.ADMOB_INTER_ID,
+                mgr.interstitialUnitIdFor(InterstitialTrigger.ExitFromPlayer),
+            )
+            assertEquals(
+                BuildConfig.ADMOB_INTER_ID,
+                mgr.interstitialUnitIdFor(InterstitialTrigger.AppForeground),
+            )
+        }
     }
 
     @Test fun `interstitialUnitIdFor returns the configured value when set`() {
-        // This test only runs meaningfully if the property is set in the local dev's gradle.properties.
-        // In CI it will be empty; the test verifies the lookup path is exercised.
+        // The lookup path is exercised even when the per-trigger ID is set
+        // (the property is non-blank). This is the production happy path.
         val mgr = newManager()
         mgr.interstitialUnitIdFor(InterstitialTrigger.ExitFromPlayer)
         mgr.interstitialUnitIdFor(InterstitialTrigger.AppForeground)

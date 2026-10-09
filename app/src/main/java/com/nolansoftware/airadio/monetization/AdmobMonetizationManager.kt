@@ -272,6 +272,13 @@ class AdmobMonetizationManager @Inject constructor(
 
     internal fun bannerUnitIdFor(surfaceId: SurfaceId): String? = when (surfaceId) {
         SurfaceId.Player      -> BuildConfig.ADMOB_BANNER_PLAYER_ID.takeIf { it.isNotBlank() }
+            // Dev ergonomics: when the per-surface ID is unset, fall back to the
+            // pre-existing global BANNER_UNIT_ID in DEBUG only. The pre-existing
+            // build.gradle.kts hardcodes that field to a Google test ID, so
+            // `installDebug` shows test banners immediately without any
+            // local.properties edits. In RELEASE, no fallback — empty per-surface
+            // ID = no ad (kill-switch semantics preserved).
+            ?: (if (BuildConfig.DEBUG) AdMobConfig.BANNER_UNIT_ID.takeIf { it.isNotBlank() } else null)
         SurfaceId.Home        -> BuildConfig.ADMOB_BANNER_HOME_ID.takeIf { it.isNotBlank() }
             ?: AdMobConfig.BANNER_UNIT_ID.takeIf { it.isNotBlank() }
         SurfaceId.Search      -> BuildConfig.ADMOB_BANNER_SEARCH_ID.takeIf { it.isNotBlank() }
@@ -285,7 +292,11 @@ class AdmobMonetizationManager @Inject constructor(
     }
 
     internal fun interstitialUnitIdFor(trigger: InterstitialTrigger): String? = when (trigger) {
+        // Dev ergonomics: fall back to the pre-existing global ADMOB_INTER_ID
+        // in DEBUG when the per-trigger ID is unset. RELEASE keeps kill-switch semantics.
         InterstitialTrigger.ExitFromPlayer -> AdMobConfig.INTERSTITIAL_EXIT_ID.takeIf { it.isNotBlank() }
+            ?: (if (BuildConfig.DEBUG) BuildConfig.ADMOB_INTER_ID.takeIf { it.isNotBlank() } else null)
         InterstitialTrigger.AppForeground  -> AdMobConfig.INTERSTITIAL_FOREGROUND_ID.takeIf { it.isNotBlank() }
+            ?: (if (BuildConfig.DEBUG) BuildConfig.ADMOB_INTER_ID.takeIf { it.isNotBlank() } else null)
     }
 }

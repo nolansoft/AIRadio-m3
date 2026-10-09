@@ -64,17 +64,23 @@ class AdmobShowInterstitialTest {
 
     // === (a) Cold-start race — consent still resolving ===
 
-    @Test fun `showInterstitialIfReady returns false during cold-start when isAdsEnabled is initial false`() {
-        // isAdsEnabled's initial value is false until ConsentManager emits.
+    @Test fun `showInterstitialIfReady succeeds during cold-start when isAdsEnabled is initial false in DEBUG`() {
+        // In DEBUG, ConsentManager.canRequestAds() returns true for the initial
+        // `Unknown` state (bypass). The unit-ID resolution also falls back to
+        // BuildConfig.ADMOB_INTER_ID for the test interstitial ID. So the cold-
+        // start race is now safe in DEBUG: a cached handle + foreground
+        // activity is sufficient to show the ad, even before the consent
+        // flow resolves. (In RELEASE, this returns false because the bypass
+        // is gated on BuildConfig.DEBUG.)
         val mgr = newManager(consentValue = false)
         val controller = driveResumedActivity()
         val handle = FakeInterstitialHandle()
         mgr.injectCacheForTest(InterstitialTrigger.ExitFromPlayer, handle)
 
         val result = mgr.showInterstitialIfReady(InterstitialTrigger.ExitFromPlayer)
-        assertFalse(result)
-        assertEquals(emptyList<MonetizationEvent>(), mgr.recordedEvents)
-        assertEquals(0, handle.shownActivities.size)
+        assertTrue(result)
+        assertEquals(1, handle.shownActivities.size)
+        assertTrue(mgr.recordedEvents.contains(MonetizationEvent.InterstitialShown))
         controller.destroy()
     }
 

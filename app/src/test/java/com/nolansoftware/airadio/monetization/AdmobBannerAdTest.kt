@@ -3,6 +3,7 @@
 package com.nolansoftware.airadio.monetization
 
 import com.nolansoftware.airadio.BuildConfig
+import com.nolansoftware.airadio.ads.AdMobConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -32,11 +33,17 @@ class AdmobBannerAdTest {
         assertNull(blank)
     }
 
-    @Test fun `bannerUnitIdFor returns null when BuildConfig ADMOB_BANNER_PLAYER_ID is empty`() {
-        // In default CI builds, ADMOB_BANNER_PLAYER_ID is ""; verify the lookup returns null.
-        if (BuildConfig.ADMOB_BANNER_PLAYER_ID.isBlank()) {
+    @Test fun `bannerUnitIdFor falls back to global test ID in DEBUG when per-surface ID is empty`() {
+        // Player surface has no production fallback by design (per-surface kill switch).
+        // But in DEBUG, when the per-surface ID is unset, we fall back to
+        // AdMobConfig.BANNER_UNIT_ID (which build.gradle.kts hardcodes to Google's
+        // test ID for debug builds). This is the dev-ergonomics behavior.
+        if (BuildConfig.ADMOB_BANNER_PLAYER_ID.isBlank() && BuildConfig.DEBUG) {
             val mgr = newManager()
-            assertNull(mgr.bannerUnitIdFor(SurfaceId.Player))
+            assertEquals(
+                AdMobConfig.BANNER_UNIT_ID,
+                mgr.bannerUnitIdFor(SurfaceId.Player),
+            )
         }
     }
 
