@@ -18,8 +18,10 @@ import com.google.android.ump.ConsentRequestParameters
 import com.google.android.ump.FormError
 import com.google.android.ump.UserMessagingPlatform
 import com.nolansoftware.airadio.ads.BlueStacksWebViewDetector
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -56,6 +58,22 @@ class ConsentManager @Inject constructor() {
     // letting the user tap a button that silently closes the sheet.
     private val _privacyOptionsRequired = MutableStateFlow(false)
     val privacyOptionsRequired: StateFlow<Boolean> = _privacyOptionsRequired
+
+    /**
+     * Cold Flow that emits true iff the current [ConsentState] permits AdMob
+     * SDK calls. Derived from [state] — true for [ConsentState.Obtained] and
+     * [ConsentState.NotRequired]; false for [ConsentState.Required],
+     * [ConsentState.Unknown], [ConsentState.OfflineFallback], and
+     * [ConsentState.WebViewIncompatible].
+     *
+     * M3 ad-monetization plan: consumed by `AdmobMonetizationManager.isAdsEnabled`
+     * via `.stateIn(...)`. Returns [Flow] (not [StateFlow]) so the cold/hot
+     * boundary lives at the consumer — matches the pattern used by
+     * `state.map { ... }.stateIn(scope, ...)` in Task 5's brief.
+     */
+    fun canRequestAds(): Flow<Boolean> = _state.map { s ->
+        s is ConsentState.Obtained || s is ConsentState.NotRequired
+    }
 
     fun initialize(app: Application) {
         // UMP 3.2.0: getConsentInformation(Context) is context-safe. The actual
