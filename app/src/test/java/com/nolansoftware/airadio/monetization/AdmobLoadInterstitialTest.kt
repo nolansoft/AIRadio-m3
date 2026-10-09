@@ -7,8 +7,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 
+// Robolectric 4.11.1's maxSdkVersion=34 conflicts with this project's
+// targetSdk=36 (see [Task 13 report] § pre-existing baseline). Pinning the
+// SDK pins Robolectric to API 33, which it fully supports, and decouples the
+// unit test runner from the prod targetSdk until Robolectric adds SDK 36.
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33])
 class AdmobLoadInterstitialTest {
 
     // Hand-rolled context: Robolectric's real Application. No Mockito.
