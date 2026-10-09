@@ -26,6 +26,23 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        buildConfigField("String", "ADMOB_BANNER_PLAYER_ID",
+            "\"${project.findProperty("ADMOB_BANNER_PLAYER_ID") ?: ""}\"")
+        buildConfigField("String", "ADMOB_BANNER_HOME_ID",
+            "\"${project.findProperty("ADMOB_BANNER_HOME_ID") ?: ""}\"")
+        buildConfigField("String", "ADMOB_BANNER_SEARCH_ID",
+            "\"${project.findProperty("ADMOB_BANNER_SEARCH_ID") ?: ""}\"")
+        buildConfigField("String", "ADMOB_BANNER_BROWSE_ID",
+            "\"${project.findProperty("ADMOB_BANNER_BROWSE_ID") ?: ""}\"")
+        buildConfigField("String", "ADMOB_BANNER_FAVORITES_ID",
+            "\"${project.findProperty("ADMOB_BANNER_FAVORITES_ID") ?: ""}\"")
+        buildConfigField("String", "ADMOB_BANNER_STATIONLIST_ID",
+            "\"${project.findProperty("ADMOB_BANNER_STATIONLIST_ID") ?: ""}\"")
+        buildConfigField("String", "ADMOB_INTERSTITIAL_EXIT_ID",
+            "\"${project.findProperty("ADMOB_INTERSTITIAL_EXIT_ID") ?: ""}\"")
+        buildConfigField("String", "ADMOB_INTERSTITIAL_FOREGROUND_ID",
+            "\"${project.findProperty("ADMOB_INTERSTITIAL_FOREGROUND_ID") ?: ""}\"")
     }
 
     val adProps = Properties().apply {
