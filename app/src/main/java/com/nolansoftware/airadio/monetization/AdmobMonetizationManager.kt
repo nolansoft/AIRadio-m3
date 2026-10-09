@@ -211,7 +211,7 @@ class AdmobMonetizationManager @Inject constructor(
             // runCatching (a function-call form, not a KtTryExpression) so the recordEvent
             // path still runs if anything escapes.
             runCatching {
-                com.nolansoftware.airadio.ads.BannerAd(modifier = Modifier.fillMaxSize())
+                com.nolansoftware.airadio.ads.BannerAd(adUnitId = unitId, modifier = Modifier.fillMaxSize())
             }.onFailure { t ->
                 Log.w("Monetization", "BannerAd threw; rendering empty", t)
                 recordEvent(MonetizationEvent.BannerLoadFailed)

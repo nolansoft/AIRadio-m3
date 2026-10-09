@@ -22,16 +22,25 @@ import kotlin.math.max
  * Uses applicationContext (not Activity) to avoid leaks.
  * AdMob 22.6.0 + UMP 3.2.0: consent state is auto-applied (non-personalized
  * ads when canRequestAds() is false), so no manual `npa` extras are needed.
+ *
+ * [adUnitId] defaults to [AdMobConfig.BANNER_UNIT_ID] for backward compatibility
+ * with existing callers. The per-surface wrapper in `AdmobMonetizationManager`
+ * passes a surface-specific ID so each surface can be tuned independently for
+ * eCPM. When [adUnitId] changes across recompositions the underlying [AdView]
+ * is rebuilt.
  */
 @Composable
-fun BannerAd(modifier: Modifier = Modifier) {
+fun BannerAd(
+    adUnitId: String = AdMobConfig.BANNER_UNIT_ID,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current.applicationContext  // SAFE: never Activity
     val widthDp = LocalConfiguration.current.screenWidthDp
-    val adView = remember(widthDp) {
+    val adView = remember(widthDp, adUnitId) {
         try {
             AdView(context).apply {
                 setAdSize(AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(context, max(320, widthDp)))
-                adUnitId = AdMobConfig.BANNER_UNIT_ID
+                this.adUnitId = adUnitId
                 adListener = object : AdListener() {
                     override fun onAdFailedToLoad(error: LoadAdError) {
                         // Silent fail — empty Box renders instead of crash.
