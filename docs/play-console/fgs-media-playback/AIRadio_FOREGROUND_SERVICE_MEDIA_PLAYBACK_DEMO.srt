@@ -1,0 +1,64 @@
+1
+00:00:00,100 --> 00:00:03,378
+AIRadio streams internet radio..
+
+2
+00:00:03,328 --> 00:00:10,054
+To keep audio playing in the background, it
+uses a foreground service of type media playback..
+
+3
+00:00:10,054 --> 00:00:17,391
+Tapping a station makes PlayerViewModel dispatch
+an ACTION_PLAY intent to startForegroundService..
+
+4
+00:00:17,391 --> 00:00:27,024
+The manifest declares foreground service type media playback
+and the matching FOREGROUND_SERVICE_MEDIA_PLAYBACK permission..
+
+5
+00:00:27,024 --> 00:00:36,277
+RadioPlayerService calls ServiceCompat startForeground
+with FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK..
+
+6
+00:00:36,277 --> 00:00:42,961
+It holds a partial wake lock and a Wi-Fi lock,
+so the stream survives the screen turning off..
+
+7
+00:00:42,961 --> 00:00:50,801
+A media-style notification shows the station
+name, country, and Play, Pause, and Stop actions..
+
+8
+00:00:50,801 --> 00:01:00,584
+The same surface appears on the lock screen and in system media
+controls, because the service registers an AndroidX Media3 MediaSession..
+
+9
+00:01:00,584 --> 00:01:05,298
+When the user presses Home, AIRadio moves to background..
+
+10
+00:01:05,298 --> 00:01:09,171
+Audio focus is still held by AIRadio..
+
+11
+00:01:09,171 --> 00:01:13,546
+The service stays foreground, and the radio keeps playing..
+
+12
+00:01:13,546 --> 00:01:18,369
+This is exactly what the mediaPlayback foreground service is for..
+
+13
+00:01:18,369 --> 00:01:22,432
+Tapping Stop runs stopForeground and stopSelf..
+
+14
+00:01:22,432 --> 00:01:28,383
+The notification disappears, the service
+ends, and audio focus is released..
+
