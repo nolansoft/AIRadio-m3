@@ -7,8 +7,14 @@ import android.app.Application
 import android.content.Context
 import android.os.Bundle
 import android.util.Log
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.nolansoftware.airadio.BuildConfig
 import com.nolansoftware.airadio.ads.AdMobConfig
 import com.nolansoftware.airadio.consent.ConsentManager
@@ -99,7 +105,30 @@ class AdmobMonetizationManager @Inject constructor(
 
     @Composable
     override fun BannerAd(surfaceId: SurfaceId, modifier: Modifier) {
-        // Implemented in Task 6.
+        // 1. Empty unit ID? Render nothing (no AdView construction, no network).
+        val unitId = bannerUnitIdFor(surfaceId) ?: return
+
+        // 2. Consent disabled? Render nothing.
+        if (!isAdsEnabled.collectAsState().value) return
+
+        // 3. Render a Box of reserved height to guarantee no layout shift.
+        val reservedHeight = AdMobConfig.EXPECTED_BANNER_HEIGHT_DP.dp
+        Box(modifier = modifier.height(reservedHeight)) {
+            // The Compose compiler (1.5.5) rejects `try { composable() } catch` because
+            // StrongSkipping cannot reason about partial composable execution. The
+            // existing `com.nolansoftware.airadio.ads.BannerAd` catches its own
+            // AdView init failures internally and returns Unit on failure — so this
+            // outer try/catch is unreachable in practice. We express the fallback as
+            // runCatching (a function-call form, not a KtTryExpression) so the recordEvent
+            // path still runs if anything escapes.
+            runCatching {
+                com.nolansoftware.airadio.ads.BannerAd(modifier = Modifier.fillMaxSize())
+            }.onFailure { t ->
+                Log.w("Monetization", "BannerAd threw; rendering empty", t)
+                recordEvent(MonetizationEvent.BannerLoadFailed)
+                // Box remains empty at reserved height — no layout shift.
+            }
+        }
     }
 
     override fun recordEvent(event: MonetizationEvent) {

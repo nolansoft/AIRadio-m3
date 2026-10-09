@@ -193,6 +193,11 @@ dependencies {
     // Testing
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    // Robolectric: powers JVM-side Android Context for AdmobBannerAdTest's
+    // Application-construction sanity test. 4.11.1 works with AGP 8.6 +
+    // Kotlin 1.9.20. No Mockito (fakes only) — Mockito would force us to add
+    // mockito-inline for the AdMob final classes.
+    testImplementation("org.robolectric:robolectric:4.11.1")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation(platform("androidx.compose:compose-bom:2024.12.01"))
