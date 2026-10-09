@@ -18,14 +18,22 @@ import androidx.compose.ui.unit.dp
 import com.nolansoftware.airadio.BuildConfig
 import com.nolansoftware.airadio.ads.AdMobConfig
 import com.nolansoftware.airadio.consent.ConsentManager
+import com.google.android.gms.ads.AdError
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.FullScreenContentCallback
+import com.google.android.gms.ads.LoadAdError
+import com.google.android.gms.ads.interstitial.InterstitialAd
+import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import java.lang.ref.WeakReference
 import java.util.concurrent.ConcurrentHashMap
@@ -95,7 +103,44 @@ class AdmobMonetizationManager @Inject constructor(
     // === Business impl — placeholder, real impl in Tasks 6/7/8/9 ===
 
     override fun loadInterstitial(trigger: InterstitialTrigger) {
-        // Implemented in Task 7.
+        val unitId = interstitialUnitIdFor(trigger) ?: return    // empty → silent no-op
+        recordEvent(MonetizationEvent.InterstitialRequested)
+        try {
+            InterstitialAd.load(context, unitId, AdRequest.Builder().build(),
+                object : InterstitialAdLoadCallback() {
+                    override fun onAdLoaded(ad: InterstitialAd) {
+                        val handle = AdmobInterstitialHandle(ad).also { h ->
+                            h.setFullScreenContentListener(object : FullScreenContentCallback() {
+                                override fun onAdFailedToShowFullScreenContent(adError: AdError) {
+                                    cache.remove(trigger)              // (b) clear on show fail
+                                    recordEvent(MonetizationEvent.InterstitialLoadFailed)
+                                }
+                                override fun onAdDismissedFullScreenContent() {
+                                    cache.remove(trigger)
+                                    recordEvent(MonetizationEvent.InterstitialDismissed)
+                                }
+                            })
+                        }
+                        cache[trigger] = handle
+                    }
+
+                    override fun onAdFailedToLoad(error: LoadAdError) {
+                        val prior = retryAttempts.getOrPut(trigger) { 0 }
+                        if (prior < 1) {
+                            retryAttempts[trigger] = prior + 1
+                            ioScope.launch {
+                                delay(30_000)
+                                loadInterstitial(trigger)            // one retry, 30s backoff
+                            }
+                        } else {
+                            retryAttempts.remove(trigger)
+                            recordEvent(MonetizationEvent.InterstitialLoadFailed)
+                        }
+                    }
+                })
+        } catch (t: Throwable) {
+            recordEvent(MonetizationEvent.InterstitialLoadFailed)
+        }
     }
 
     override fun showInterstitialIfReady(trigger: InterstitialTrigger): Boolean {
