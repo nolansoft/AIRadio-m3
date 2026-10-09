@@ -33,12 +33,14 @@ class AdmobBannerAdTest {
         assertNull(blank)
     }
 
-    @Test fun `bannerUnitIdFor falls back to global test ID in DEBUG when per-surface ID is empty`() {
-        // Player surface has no production fallback by design (per-surface kill switch).
-        // But in DEBUG, when the per-surface ID is unset, we fall back to
-        // AdMobConfig.BANNER_UNIT_ID (which build.gradle.kts hardcodes to Google's
-        // test ID for debug builds). This is the dev-ergonomics behavior.
-        if (BuildConfig.ADMOB_BANNER_PLAYER_ID.isBlank() && BuildConfig.DEBUG) {
+    @Test fun `bannerUnitIdFor falls back to global ID when per-surface ID is empty`() {
+        // Player surface falls back to the pre-existing global BANNER_UNIT_ID
+        // when the per-surface ID is unset. This keeps Player consistent with
+        // the 5 list screens (which also fall back to BANNER_UNIT_ID via
+        // BannerAdExt.bannerAdItem). The kill-switch semantics are preserved
+        // (an empty per-surface ID still results in no ad IF the global is
+        // also empty); for a single-ID setup the global is non-empty.
+        if (BuildConfig.ADMOB_BANNER_PLAYER_ID.isBlank()) {
             val mgr = newManager()
             assertEquals(
                 AdMobConfig.BANNER_UNIT_ID,

@@ -139,6 +139,10 @@ class AdmobMonetizationManager @Inject constructor(
                     }
                 })
         } catch (t: Throwable) {
+            // Log the cause — a synchronous throw here (e.g. SDK classloader
+            // failure on ROMs missing API-33 framework classes) is otherwise
+            // indistinguishable from an async no-fill in the event stream.
+            Log.w("Monetization", "InterstitialAd.load threw for $trigger", t)
             recordEvent(MonetizationEvent.InterstitialLoadFailed)
         }
     }
@@ -270,15 +274,28 @@ class AdmobMonetizationManager @Inject constructor(
 
     // === Unit-ID resolution (used by Tasks 6 and 7) ===
 
-    internal fun bannerUnitIdFor(surfaceId: SurfaceId): String? = when (surfaceId) {
+    // Override builds (DEBUG, or release built with
+    // `airadio.ads.emulatorOverride=true`) resolve every surface to Google's
+    // official TEST unit IDs: real AdMob units are not filled on emulators
+    // (advertiser protection), so a release build would render only empty
+    // slots. The code path exercised (config read → resolve → load → render)
+    // is identical; only the ID string differs. Real release builds are
+    // unaffected (override defaults to false).
+    internal fun bannerUnitIdFor(surfaceId: SurfaceId): String? =
+        if (BuildConfig.ADMOB_EMULATOR_OVERRIDE) AdMobConfig.TEST_BANNER_UNIT_ID
+        else resolveRealBannerUnitId(surfaceId)
+
+    private fun resolveRealBannerUnitId(surfaceId: SurfaceId): String? = when (surfaceId) {
         SurfaceId.Player      -> BuildConfig.ADMOB_BANNER_PLAYER_ID.takeIf { it.isNotBlank() }
-            // Dev ergonomics: when the per-surface ID is unset, fall back to the
-            // pre-existing global BANNER_UNIT_ID in DEBUG only. The pre-existing
-            // build.gradle.kts hardcodes that field to a Google test ID, so
-            // `installDebug` shows test banners immediately without any
-            // local.properties edits. In RELEASE, no fallback — empty per-surface
-            // ID = no ad (kill-switch semantics preserved).
-            ?: (if (BuildConfig.DEBUG) AdMobConfig.BANNER_UNIT_ID.takeIf { it.isNotBlank() } else null)
+            // Fall back to the pre-existing global BANNER_UNIT_ID when the
+            // per-surface ID is unset. The pre-existing 5 list screens
+            // (Home/Search/Browse/Favorites/StationList) already use the global
+            // BANNER_UNIT_ID directly via BannerAdExt.bannerAdItem — this keeps
+            // the Player screen consistent. A developer with a single AdMob
+            // banner unit ID (the common case) sees banners everywhere without
+            // configuring per-surface IDs. When the developer later provisions
+            // per-surface IDs in AdMob console, those take priority automatically.
+            ?: AdMobConfig.BANNER_UNIT_ID.takeIf { it.isNotBlank() }
         SurfaceId.Home        -> BuildConfig.ADMOB_BANNER_HOME_ID.takeIf { it.isNotBlank() }
             ?: AdMobConfig.BANNER_UNIT_ID.takeIf { it.isNotBlank() }
         SurfaceId.Search      -> BuildConfig.ADMOB_BANNER_SEARCH_ID.takeIf { it.isNotBlank() }
@@ -291,12 +308,20 @@ class AdmobMonetizationManager @Inject constructor(
             ?: AdMobConfig.BANNER_UNIT_ID.takeIf { it.isNotBlank() }
     }
 
-    internal fun interstitialUnitIdFor(trigger: InterstitialTrigger): String? = when (trigger) {
-        // Dev ergonomics: fall back to the pre-existing global ADMOB_INTER_ID
-        // in DEBUG when the per-trigger ID is unset. RELEASE keeps kill-switch semantics.
+    internal fun interstitialUnitIdFor(trigger: InterstitialTrigger): String? =
+        if (BuildConfig.ADMOB_EMULATOR_OVERRIDE) AdMobConfig.TEST_INTERSTITIAL_UNIT_ID
+        else resolveRealInterstitialUnitId(trigger)
+
+    private fun resolveRealInterstitialUnitId(trigger: InterstitialTrigger): String? = when (trigger) {
+        // Fall back to the pre-existing global ADMOB_INTER_ID when the
+        // per-trigger ID is unset. Same rationale as bannerUnitIdFor: the
+        // single-interstitial-id case is the common setup; per-trigger IDs
+        // become useful when the developer provisions separate interstitials
+        // for ExitFromPlayer vs AppForeground (different eCPM, different
+        // campaign, etc.).
         InterstitialTrigger.ExitFromPlayer -> AdMobConfig.INTERSTITIAL_EXIT_ID.takeIf { it.isNotBlank() }
-            ?: (if (BuildConfig.DEBUG) BuildConfig.ADMOB_INTER_ID.takeIf { it.isNotBlank() } else null)
+            ?: BuildConfig.ADMOB_INTER_ID.takeIf { it.isNotBlank() }
         InterstitialTrigger.AppForeground  -> AdMobConfig.INTERSTITIAL_FOREGROUND_ID.takeIf { it.isNotBlank() }
-            ?: (if (BuildConfig.DEBUG) BuildConfig.ADMOB_INTER_ID.takeIf { it.isNotBlank() } else null)
+            ?: BuildConfig.ADMOB_INTER_ID.takeIf { it.isNotBlank() }
     }
 }

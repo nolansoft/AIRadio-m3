@@ -11,6 +11,31 @@ plugins {
     id("com.jaredsburrows.license")
 }
 
+// Loaded once from local.properties (gitignored): release signing keys,
+// real AdMob IDs, and the opt-in emulator ad override all live there.
+// Declared at top level so defaultConfig can read it (signingConfigs and
+// buildTypes below consume the same instance).
+val adProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) load(FileInputStream(f))
+}
+
+// Opt-in emulator ad override: true releases skip the BlueStacks WebView
+// guard and force MobileAds.initialize. Settable from local.properties
+// (`airadio.ads.emulatorOverride=true`) or `-Pairadio.ads.emulatorOverride=true`.
+// Defaults to false so Play Store release builds are never affected.
+val emulatorAdsOverride: Boolean =
+    (adProps.getProperty("airadio.ads.emulatorOverride")
+        ?: project.findProperty("airadio.ads.emulatorOverride")?.toString()
+        ?: "false").equals("true", ignoreCase = true)
+
+// Reads an ad unit ID from local.properties first (same source as the
+// airadio.admob.* keys), then falls back to gradle.properties / -P.
+// NOTE: plain project.findProperty() does NOT read local.properties —
+// using it alone silently yields empty IDs for keys set there.
+fun adUnitIdProp(key: String): String =
+    adProps.getProperty(key) ?: project.findProperty(key)?.toString() ?: ""
+
 android {
     namespace = "com.nolansoftware.airadio"
     compileSdk = 36
@@ -27,27 +52,21 @@ android {
             useSupportLibrary = true
         }
 
-        buildConfigField("String", "ADMOB_BANNER_PLAYER_ID",
-            "\"${project.findProperty("ADMOB_BANNER_PLAYER_ID") ?: ""}\"")
-        buildConfigField("String", "ADMOB_BANNER_HOME_ID",
-            "\"${project.findProperty("ADMOB_BANNER_HOME_ID") ?: ""}\"")
-        buildConfigField("String", "ADMOB_BANNER_SEARCH_ID",
-            "\"${project.findProperty("ADMOB_BANNER_SEARCH_ID") ?: ""}\"")
-        buildConfigField("String", "ADMOB_BANNER_BROWSE_ID",
-            "\"${project.findProperty("ADMOB_BANNER_BROWSE_ID") ?: ""}\"")
-        buildConfigField("String", "ADMOB_BANNER_FAVORITES_ID",
-            "\"${project.findProperty("ADMOB_BANNER_FAVORITES_ID") ?: ""}\"")
-        buildConfigField("String", "ADMOB_BANNER_STATIONLIST_ID",
-            "\"${project.findProperty("ADMOB_BANNER_STATIONLIST_ID") ?: ""}\"")
-        buildConfigField("String", "ADMOB_INTERSTITIAL_EXIT_ID",
-            "\"${project.findProperty("ADMOB_INTERSTITIAL_EXIT_ID") ?: ""}\"")
-        buildConfigField("String", "ADMOB_INTERSTITIAL_FOREGROUND_ID",
-            "\"${project.findProperty("ADMOB_INTERSTITIAL_FOREGROUND_ID") ?: ""}\"")
-    }
-
-    val adProps = Properties().apply {
-        val f = rootProject.file("local.properties")
-        if (f.exists()) load(FileInputStream(f))
+        buildConfigField("String", "ADMOB_BANNER_PLAYER_ID", "\"${adUnitIdProp("ADMOB_BANNER_PLAYER_ID")}\"")
+        buildConfigField("String", "ADMOB_BANNER_HOME_ID", "\"${adUnitIdProp("ADMOB_BANNER_HOME_ID")}\"")
+        buildConfigField("String", "ADMOB_BANNER_SEARCH_ID", "\"${adUnitIdProp("ADMOB_BANNER_SEARCH_ID")}\"")
+        buildConfigField("String", "ADMOB_BANNER_BROWSE_ID", "\"${adUnitIdProp("ADMOB_BANNER_BROWSE_ID")}\"")
+        buildConfigField("String", "ADMOB_BANNER_FAVORITES_ID", "\"${adUnitIdProp("ADMOB_BANNER_FAVORITES_ID")}\"")
+        buildConfigField("String", "ADMOB_BANNER_STATIONLIST_ID", "\"${adUnitIdProp("ADMOB_BANNER_STATIONLIST_ID")}\"")
+        buildConfigField("String", "ADMOB_INTERSTITIAL_EXIT_ID", "\"${adUnitIdProp("ADMOB_INTERSTITIAL_EXIT_ID")}\"")
+        buildConfigField("String", "ADMOB_INTERSTITIAL_FOREGROUND_ID", "\"${adUnitIdProp("ADMOB_INTERSTITIAL_FOREGROUND_ID")}\"")
+        // Opt-in emulator-testing override. Defaults to false. NEVER enabled in
+        // Play Store release builds: it skips the BlueStacks WebView guard and
+        // force-initializes MobileAds. Set `airadio.ads.emulatorOverride=true`
+        // in local.properties only when testing ad rendering on emulators whose
+        // WebView detector trips (uncube/cloud images) or whose consent server
+        // is unreachable.
+        buildConfigField("boolean", "ADMOB_EMULATOR_OVERRIDE", "$emulatorAdsOverride")
     }
 
     signingConfigs {
@@ -73,6 +92,9 @@ android {
 
     buildTypes {
         debug {
+            // Debug builds always get the ad-override (test IDs + forced
+            // MobileAds.initialize + consent/WebView guard bypass).
+            buildConfigField("boolean", "ADMOB_EMULATOR_OVERRIDE", "true")
             manifestPlaceholders["ADMOB_APPLICATION_ID"] = "ca-app-pub-3940256099942544~3347511713"
             buildConfigField("String", "ADMOB_BANNER_ID", "\"ca-app-pub-3940256099942544/9214589741\"")
             buildConfigField("String", "ADMOB_INTER_ID", "\"ca-app-pub-3940256099942544/1033173712\"")
@@ -87,9 +109,17 @@ android {
             val prodBannerId = (adProps["airadio.admob.banner.id"] as String?) ?: "ca-app-pub-3940256099942544/9214589741"
             val prodInterId = (adProps["airadio.admob.interstitial.id"] as String?) ?: "ca-app-pub-3940256099942544/1033173712"
 
+            // Emulator-override builds use Google's official TEST unit IDs:
+            // real units are not filled on emulators, so verification builds
+            // would show empty slots. The pre-existing list screens read these
+            // globals, so substituting here covers them; the manager's
+            // per-surface resolution substitutes its own copy.
+            val bannerId = if (emulatorAdsOverride) "ca-app-pub-3940256099942544/9214589741" else prodBannerId
+            val interId = if (emulatorAdsOverride) "ca-app-pub-3940256099942544/1033173712" else prodInterId
+
             manifestPlaceholders["ADMOB_APPLICATION_ID"] = prodAppId
-            buildConfigField("String", "ADMOB_BANNER_ID", "\"$prodBannerId\"")
-            buildConfigField("String", "ADMOB_INTER_ID", "\"$prodInterId\"")
+            buildConfigField("String", "ADMOB_BANNER_ID", "\"$bannerId\"")
+            buildConfigField("String", "ADMOB_INTER_ID", "\"$interId\"")
         }
     }
     compileOptions {

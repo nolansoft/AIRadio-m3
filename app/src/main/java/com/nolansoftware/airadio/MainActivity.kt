@@ -63,18 +63,25 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        // Dev ergonomics: in DEBUG, force MobileAds.initialize so ad serving
-        // works even when UMP's consent flow is stuck (e.g., the consent
-        // server fundingchoicesmessages.google.com is unreachable, or the
+        // Dev ergonomics: when BuildConfig.ADMOB_EMULATOR_OVERRIDE (true in
+        // DEBUG, or `airadio.ads.emulatorOverride=true` build property), force
+        // MobileAds.initialize so ad serving works even when UMP's consent
+        // flow is stuck (e.g., the consent server
+        // fundingchoicesmessages.google.com is unreachable, or the
         // BlueStacksWebViewDetector flags this emulator as broken). The
         // ConsentManager normally calls MobileAds.initialize from the
         // consent success/failure listeners — if those never fire, the SDK
         // never initializes and no ads can serve. The SDK's own try/catch
         // handles the case where the underlying WebView is genuinely broken
-        // (it just logs a warning and continues). RELEASE behavior is
-        // unchanged — MobileAds.initialize is still driven by the consent
-        // listeners in production.
-        if (BuildConfig.DEBUG) {
+        // (it just logs a warning and continues). Production release behavior
+        // is unchanged.
+        //
+        // Override builds also substitute Google's official TEST unit IDs at
+        // the resolution layer (AdmobMonetizationManager) and in the release
+        // buildType (for the pre-existing list screens): Google does not fill
+        // REAL ad units on emulators (advertiser protection), so a release
+        // build with production IDs would render only empty slots here.
+        if (BuildConfig.ADMOB_EMULATOR_OVERRIDE) {
             try {
                 com.google.android.gms.ads.MobileAds.initialize(this) { /* ready */ }
             } catch (e: Throwable) {
@@ -103,10 +110,19 @@ class MainActivity : ComponentActivity() {
             override fun onStart(owner: LifecycleOwner) {
                 if (lastStopWasBackground) {
                     monetizationManager.showInterstitialIfReady(InterstitialTrigger.AppForeground)
+                    // Preload the next interstitial for the following
+                    // background→foreground transition: showing clears the
+                    // cache slot, so without a fresh load the next
+                    // AppForeground trigger would find nothing to show.
+                    monetizationManager.loadInterstitial(InterstitialTrigger.AppForeground)
                 }
                 lastStopWasBackground = false
             }
         })
+
+        // First preload so the very first background→foreground transition
+        // has a cached interstitial ready to show.
+        monetizationManager.loadInterstitial(InterstitialTrigger.AppForeground)
     }
 }
 

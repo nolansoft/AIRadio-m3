@@ -22,4 +22,14 @@ object AdMobConfig {
     const val FREQ_EXIT_PLAYER_PER_SESSION = 2        // per cold-start session
     const val FREQ_FOREGROUND_WINDOW_MS = 600_000L    // 10 min
     const val FREQ_FOREGROUND_PER_SESSION = 2
+
+    // === GOOGLE OFFICIAL TEST UNIT IDS ===
+    // Fill on ANY device (including emulators), unlike real units which
+    // Google refuses to fill off real devices. Used by override builds
+    // (BuildConfig.ADMOB_EMULATOR_OVERRIDE) so emulator verification runs
+    // exercise the full ad pipeline with fillable inventory. Must stay in
+    // sync with the literals in app/build.gradle.kts (debug buildType and
+    // the release buildType override branch).
+    const val TEST_BANNER_UNIT_ID = "ca-app-pub-3940256099942544/9214589741"
+    const val TEST_INTERSTITIAL_UNIT_ID = "ca-app-pub-3940256099942544/1033173712"
 }

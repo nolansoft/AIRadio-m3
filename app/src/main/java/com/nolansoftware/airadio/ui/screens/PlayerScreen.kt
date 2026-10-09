@@ -93,7 +93,13 @@ fun PlayerScreen(
 
     DisposableEffect(activity) {
         onDispose {
-            if (activity.isFinishing && !activity.isChangingConfigurations) {
+            // Fire on every real exit from the Player — both in-app back
+            // navigation (back-stack pop; the Activity is NOT finishing) and
+            // app exit. Only rotation is excluded: on a configuration change
+            // the composition is torn down too, and the spec requires no
+            // interstitial there. The manager's frequency caps (60 s window /
+            // 2 per session) guard against over-showing.
+            if (!activity.isChangingConfigurations) {
                 viewModel.monetizationManager
                     .showInterstitialIfReady(InterstitialTrigger.ExitFromPlayer)
             }
