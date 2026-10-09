@@ -202,6 +202,10 @@ dependencies {
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation(platform("androidx.compose:compose-bom:2024.12.01"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    // Hilt instrumented-test support: provides @HiltAndroidTest and @TestInstallIn
+    // (used by TestMonetizationModule to swap AdmobMonetizationManager for the
+    // NoOp variant in androidTest runs).
+    androidTestImplementation("com.google.dagger:hilt-android-testing:2.48")
 
     // AdMob + UMP (M3 Lane A — DOWNGRADED to Kotlin 1.9-compatible versions per user decision)
     // 22.6.0 was the last 22.x release (May 2024) before the Google Mobile Ads SDK
