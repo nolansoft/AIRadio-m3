@@ -33,10 +33,6 @@
 -keep class com.nolansoftware.airadio.data.database.entity.** { *; }
 -keep class com.nolansoftware.airadio.domain.model.** { *; }
 
-# Hilt
--keep class dagger.hilt.** { *; }
--dontwarn dagger.hilt.**
-
 # UMP lacks consumer rules — must keep reflection-loaded classes.
 -keep class com.google.android.ump.** { *; }
 
