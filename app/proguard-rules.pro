@@ -48,9 +48,6 @@
     public static final ** CREATOR;
 }
 
-# Attributes commonly needed by reflection / annotations.
--keepattributes Signature, *Annotation*, EnclosingMethod, InnerClasses
-
 # Media3 HLS — preemptive warning suppression.
 -dontwarn androidx.media3.exoplayer.hls.**
 
