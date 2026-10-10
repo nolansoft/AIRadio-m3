@@ -33,10 +33,6 @@
 -keep class com.nolansoftware.airadio.data.database.entity.** { *; }
 -keep class com.nolansoftware.airadio.domain.model.** { *; }
 
-# ExoPlayer
--keep class com.google.android.exoplayer2.** { *; }
--dontwarn com.google.android.exoplayer2.**
-
 # Hilt
 -keep class dagger.hilt.** { *; }
 -dontwarn dagger.hilt.**
