@@ -30,7 +30,6 @@
 
 # Retrofit
 -keep class com.nolansoftware.airadio.data.api.model.** { *; }
--keep class com.nolansoftware.airadio.domain.model.** { *; }
 
 # UMP lacks consumer rules — must keep reflection-loaded classes.
 -keep class com.google.android.ump.** { *; }
