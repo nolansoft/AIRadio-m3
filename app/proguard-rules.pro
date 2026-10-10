@@ -43,11 +43,6 @@
 # GMS Tasks (used by AdMob async paths).
 -keep class com.google.android.gms.tasks.** { *; }
 
-# Parcelable CREATOR preservation.
--keepclassmembers class * implements android.os.Parcelable {
-    public static final ** CREATOR;
-}
-
 # Media3 HLS — preemptive warning suppression.
 -dontwarn androidx.media3.exoplayer.hls.**
 
