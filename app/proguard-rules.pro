@@ -35,9 +35,6 @@
 # UMP lacks consumer rules — must keep reflection-loaded classes.
 -keep class com.google.android.ump.** { *; }
 
-# GMS Tasks (used by AdMob async paths).
--keep class com.google.android.gms.tasks.** { *; }
-
 # Media3 HLS — preemptive warning suppression.
 -dontwarn androidx.media3.exoplayer.hls.**
 
