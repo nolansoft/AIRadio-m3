@@ -63,25 +63,22 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        // Dev ergonomics: when BuildConfig.ADMOB_EMULATOR_OVERRIDE (true in
-        // DEBUG, or `airadio.ads.emulatorOverride=true` build property), force
-        // MobileAds.initialize so ad serving works even when UMP's consent
-        // flow is stuck (e.g., the consent server
-        // fundingchoicesmessages.google.com is unreachable, or the
-        // BlueStacksWebViewDetector flags this emulator as broken). The
-        // ConsentManager normally calls MobileAds.initialize from the
-        // consent success/failure listeners — if those never fire, the SDK
-        // never initializes and no ads can serve. The SDK's own try/catch
-        // handles the case where the underlying WebView is genuinely broken
-        // (it just logs a warning and continues). Production release behavior
-        // is unchanged.
+        // Dev ergonomics: in DEBUG builds, force MobileAds.initialize so ad
+        // serving works even when UMP's consent flow is stuck (e.g., the
+        // consent server fundingchoicesmessages.google.com is unreachable, or
+        // the BlueStacksWebViewDetector flags the emulator as broken). The
+        // ConsentManager normally calls MobileAds.initialize from the consent
+        // success/failure listeners — if those never fire, the SDK never
+        // initializes and no ads can serve. The SDK's own try/catch handles
+        // the case where the underlying WebView is genuinely broken (it just
+        // logs a warning and continues). Release builds go through the normal
+        // consent-driven init flow and use the real AdMob unit IDs.
         //
-        // Override builds also substitute Google's official TEST unit IDs at
-        // the resolution layer (AdmobMonetizationManager) and in the release
-        // buildType (for the pre-existing list screens): Google does not fill
-        // REAL ad units on emulators (advertiser protection), so a release
-        // build with production IDs would render only empty slots here.
-        if (BuildConfig.ADMOB_EMULATOR_OVERRIDE) {
+        // DEBUG builds also substitute Google's official TEST unit IDs at the
+        // resolution layer (AdmobMonetizationManager): Google does not fill
+        // REAL ad units on emulators (advertiser protection), so a DEBUG build
+        // on an emulator would render only empty slots with real IDs.
+        if (BuildConfig.DEBUG) {
             try {
                 com.google.android.gms.ads.MobileAds.initialize(this) { /* ready */ }
             } catch (e: Throwable) {

@@ -274,15 +274,13 @@ class AdmobMonetizationManager @Inject constructor(
 
     // === Unit-ID resolution (used by Tasks 6 and 7) ===
 
-    // Override builds (DEBUG, or release built with
-    // `airadio.ads.emulatorOverride=true`) resolve every surface to Google's
-    // official TEST unit IDs: real AdMob units are not filled on emulators
-    // (advertiser protection), so a release build would render only empty
-    // slots. The code path exercised (config read → resolve → load → render)
-    // is identical; only the ID string differs. Real release builds are
-    // unaffected (override defaults to false).
+    // DEBUG builds resolve every surface to Google's official TEST unit IDs:
+    // real AdMob units are not filled on emulators (advertiser protection),
+    // so a DEBUG build on an emulator would render only empty slots. The code
+    // path exercised (config read → resolve → load → render) is identical;
+    // only the ID string differs. Release builds always use real unit IDs.
     internal fun bannerUnitIdFor(surfaceId: SurfaceId): String? =
-        if (BuildConfig.ADMOB_EMULATOR_OVERRIDE) AdMobConfig.TEST_BANNER_UNIT_ID
+        if (BuildConfig.DEBUG) AdMobConfig.TEST_BANNER_UNIT_ID
         else resolveRealBannerUnitId(surfaceId)
 
     private fun resolveRealBannerUnitId(surfaceId: SurfaceId): String? = when (surfaceId) {
@@ -309,7 +307,7 @@ class AdmobMonetizationManager @Inject constructor(
     }
 
     internal fun interstitialUnitIdFor(trigger: InterstitialTrigger): String? =
-        if (BuildConfig.ADMOB_EMULATOR_OVERRIDE) AdMobConfig.TEST_INTERSTITIAL_UNIT_ID
+        if (BuildConfig.DEBUG) AdMobConfig.TEST_INTERSTITIAL_UNIT_ID
         else resolveRealInterstitialUnitId(trigger)
 
     private fun resolveRealInterstitialUnitId(trigger: InterstitialTrigger): String? = when (trigger) {

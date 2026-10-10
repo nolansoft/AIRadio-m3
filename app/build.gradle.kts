@@ -20,15 +20,6 @@ val adProps = Properties().apply {
     if (f.exists()) load(FileInputStream(f))
 }
 
-// Opt-in emulator ad override: true releases skip the BlueStacks WebView
-// guard and force MobileAds.initialize. Settable from local.properties
-// (`airadio.ads.emulatorOverride=true`) or `-Pairadio.ads.emulatorOverride=true`.
-// Defaults to false so Play Store release builds are never affected.
-val emulatorAdsOverride: Boolean =
-    (adProps.getProperty("airadio.ads.emulatorOverride")
-        ?: project.findProperty("airadio.ads.emulatorOverride")?.toString()
-        ?: "false").equals("true", ignoreCase = true)
-
 // Reads an ad unit ID from local.properties first (same source as the
 // airadio.admob.* keys), then falls back to gradle.properties / -P.
 // NOTE: plain project.findProperty() does NOT read local.properties —
@@ -44,8 +35,8 @@ android {
         applicationId = "com.nolansoftware.airadio"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.5"
+        versionCode = 7
+        versionName = "1.57"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -60,14 +51,7 @@ android {
         buildConfigField("String", "ADMOB_BANNER_STATIONLIST_ID", "\"${adUnitIdProp("ADMOB_BANNER_STATIONLIST_ID")}\"")
         buildConfigField("String", "ADMOB_INTERSTITIAL_EXIT_ID", "\"${adUnitIdProp("ADMOB_INTERSTITIAL_EXIT_ID")}\"")
         buildConfigField("String", "ADMOB_INTERSTITIAL_FOREGROUND_ID", "\"${adUnitIdProp("ADMOB_INTERSTITIAL_FOREGROUND_ID")}\"")
-        // Opt-in emulator-testing override. Defaults to false. NEVER enabled in
-        // Play Store release builds: it skips the BlueStacks WebView guard and
-        // force-initializes MobileAds. Set `airadio.ads.emulatorOverride=true`
-        // in local.properties only when testing ad rendering on emulators whose
-        // WebView detector trips (uncube/cloud images) or whose consent server
-        // is unreachable.
-        buildConfigField("boolean", "ADMOB_EMULATOR_OVERRIDE", "$emulatorAdsOverride")
-    }
+        }
 
     signingConfigs {
         create("release") {
@@ -92,9 +76,11 @@ android {
 
     buildTypes {
         debug {
-            // Debug builds always get the ad-override (test IDs + forced
-            // MobileAds.initialize + consent/WebView guard bypass).
-            buildConfigField("boolean", "ADMOB_EMULATOR_OVERRIDE", "true")
+            // Debug builds always use Google's official TEST unit IDs: real
+            // units are not filled on emulators (advertiser protection), so
+            // debug builds on emulators would otherwise render empty slots.
+            // The pre-existing list screens read these globals; the manager's
+            // per-surface resolution substitutes its own copy via BuildConfig.DEBUG.
             manifestPlaceholders["ADMOB_APPLICATION_ID"] = "ca-app-pub-3940256099942544~3347511713"
             buildConfigField("String", "ADMOB_BANNER_ID", "\"ca-app-pub-3940256099942544/9214589741\"")
             buildConfigField("String", "ADMOB_INTER_ID", "\"ca-app-pub-3940256099942544/1033173712\"")
@@ -109,17 +95,9 @@ android {
             val prodBannerId = (adProps["airadio.admob.banner.id"] as String?) ?: "ca-app-pub-3940256099942544/9214589741"
             val prodInterId = (adProps["airadio.admob.interstitial.id"] as String?) ?: "ca-app-pub-3940256099942544/1033173712"
 
-            // Emulator-override builds use Google's official TEST unit IDs:
-            // real units are not filled on emulators, so verification builds
-            // would show empty slots. The pre-existing list screens read these
-            // globals, so substituting here covers them; the manager's
-            // per-surface resolution substitutes its own copy.
-            val bannerId = if (emulatorAdsOverride) "ca-app-pub-3940256099942544/9214589741" else prodBannerId
-            val interId = if (emulatorAdsOverride) "ca-app-pub-3940256099942544/1033173712" else prodInterId
-
             manifestPlaceholders["ADMOB_APPLICATION_ID"] = prodAppId
-            buildConfigField("String", "ADMOB_BANNER_ID", "\"$bannerId\"")
-            buildConfigField("String", "ADMOB_INTER_ID", "\"$interId\"")
+            buildConfigField("String", "ADMOB_BANNER_ID", "\"$prodBannerId\"")
+            buildConfigField("String", "ADMOB_INTER_ID", "\"$prodInterId\"")
         }
     }
     compileOptions {
