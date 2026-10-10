@@ -55,3 +55,6 @@ Thumbs.db
 # Generic backup suffixes
 *.bak
 *~
+AIRadio_FOREGROUND_SERVICE_MEDIA_PLAYBACK_DEMO.mp4
+.claude/
+docs/articles/
